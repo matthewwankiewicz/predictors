@@ -9,7 +9,7 @@ Need to get data for:
 
 NBA - can just use basketball reference and cleaning the glass
 
-NFL - NFLScrapR
+~~NFL - NFLScrapR~~
 
 MLB - Savant data?, baseball-reference
 
@@ -23,7 +23,7 @@ Need to create models for:
 
 NBA - can use existing predictor model
 
-NFL - can use existing model
+~~NFL - can use existing model~~ combined with ELO
 
 MLB - matchups? (vs L, vs R, day/night)
 
