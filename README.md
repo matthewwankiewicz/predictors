@@ -7,7 +7,7 @@ Models for prediction NFL, NHL, MLB and NBA games, all located in a Shiny app.
 
 Need to get data for:
 
-NBA - can just use basketball reference and cleaning the glass
+~~NBA - can just use basketball reference and cleaning the glass~~
 
 ~~NFL - NFLScrapR~~
 
