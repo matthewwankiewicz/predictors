@@ -11,8 +11,117 @@ library(shiny)
 library(tidyverse)
 library(sqldf)
 
+simulate_score <- function(probs, p_2pt, p_3pt, p_reb, p_ft, sims){
+    
+    a <- 1
+    pts <- 0
+    
+    while(a <= sims){
+        
+        outcome <- sample(c(1:4), 1, prob = probs)
+        
+        if(outcome == 2){
+            end <- 0
+            while(end < 1){
+                
+                shot_prob <- runif(1)
+                
+                if(shot_prob <= p_2pt){
+                    
+                    pts <- pts + 2
+                    end = 1
+                    
+                }
+                
+                else{
+                    
+                    reb <- runif(1)
+                    if(reb >= p_reb){
+                        
+                        end = 1
+                        
+                    }
+                    
+                }
+                
+            }
+        }
+        
+        if(outcome == 3){
+            end <- 0
+            while(end < 1){
+                
+                shot_prob <- runif(1)
+                
+                if(shot_prob <= p_3pt){
+                    
+                    pts <- pts + 3
+                    end = 1
+                    
+                }
+                
+                else{
+                    
+                    reb <- runif(1)
+                    if(reb >= p_reb){
+                        
+                        end = 1
+                        
+                    }
+                    
+                }
+                
+            }
+            
+        }
+        
+        if(outcome == 4){
+            end <- 0
+            while(end < 1){
+                
+                shot_prob <- runif(1)
+                
+                if(shot_prob <= p_ft){
+                    
+                    pts <- pts + 1
+                    end = 1
+                    
+                }
+                shot_prob <- runif(1)
+                if(shot_prob <= p_ft){
+                    
+                    pts <- pts + 1
+                    end = 1
+                    
+                }
+                
+                else{
+                    
+                    reb <- runif(1)
+                    if(reb >= p_reb){
+                        
+                        end = 1
+                        
+                    }
+                    
+                }
+                
+            }
+        }
+        a = a+1
+    }
+    print((pts/sims)*105)
+}
+
 nfl_matchups <- read_rds("matchups.rds")
 nba_matchups <- read_rds("nba_matchups.rds")
+nba_matchups_hb2b <- read_rds("nba_matchups_homeb2b.rds")
+nba_matchups_vb2b <- read_rds("nba_matchups_visitorb2b.rds")
+nba_matchups_bothb2b <- read_rds("nba_matchups_bothb2b.rds")
+offence_stats <- read_rds("offence_stats.rds")
+defence_stats <- read_rds("defence_stats.rds")
+advanced_data_home <- read_rds("advanced_data_home.rds")
+advanced_data_visitor <- read_rds("advanced_data_visitor.rds")
 
 ### Accuracy
 nfl_acc <- read_rds("nfl_acc.rds")
@@ -49,11 +158,33 @@ ui <- navbarPage("Predictors",
                                  choices = sort(unique(nba_matchups$visitor))),
                      textInput(inputId = "nba_odds_ff",
                                label = "Odds for Home Team:",
-                               value = "0")),
+                               value = "0"),
+                     radioButtons(inputId = "homeb2b",
+                                  label = "Home on back to back?",
+                                  choices = list("Yes", "No")),
+                     radioButtons(inputId = "roadb2b",
+                                  label = "Visitor on back to back?",
+                                  choices = list("Yes", "No"))),
                  mainPanel(
                      textOutput("nba_match"),
                      tableOutput("nba_matches"),
                      textOutput("nba_setup")
+                 ))),
+    tabPanel("Monte Carlo",
+             sidebarLayout(
+                 sidebarPanel(
+                     selectInput(inputId = "mc_home",
+                                 label = "Select Home Team:",
+                                 choices = sort(unique(offence_stats$Team))),
+                     selectInput(inputId = "mc_away",
+                                 label = "Select Visiting Team:",
+                                 choices = sort(unique(offence_stats$Team))),
+                     textInput(inputId = "nba_odds_ff",
+                               label = "Odds for Home Team:",
+                               value = "0")),
+                 mainPanel(
+                     textOutput("mc_match"),
+                     textOutput("mc_setup")
                  ))),
     tabPanel("About",
              mainPanel(h1("About the Model"),
@@ -89,8 +220,22 @@ server <- function(input, output) {
         odd <- as.numeric(input$nba_odds_ff)
         odd2 <- ifelse(odd < 0, -1*odd/(-1*odd + 100), 100/(100+odd))
         imp_prob <- round(odd2*100, digits = 2)
-        prediction <- sqldf(paste("SELECT avg_estimate from nba_matchups WHERE home = '",
-                                  input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
+        if(input$homeb2b == "Yes" & input$roadb2b == "Yes"){
+            prediction <- sqldf(paste("SELECT avg_estimate from nba_matchups_bothb2b WHERE home = '",
+                                      input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
+        }
+        else if(input$homeb2b == "Yes" & input$roadb2b == "No"){
+            prediction <- sqldf(paste("SELECT avg_estimate from nba_matchups_hb2b WHERE home = '",
+                                      input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
+        }
+        else if(input$homeb2b == "No" & input$roadb2b == "Yes"){
+            prediction <- sqldf(paste("SELECT avg_estimate from nba_matchups_vb2b WHERE home = '",
+                                      input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
+        }
+        else{
+            prediction <- sqldf(paste("SELECT avg_estimate from nba_matchups WHERE home = '",
+                                      input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
+        }
         prediction <- round(prediction, digits = 3)*100
         paste("The ", input$nba_home, " have a ", prediction, " percent chance of beating the ", input$nba_away,
               ". With odds of ", odd, ", the implied probability of ", input$nba_home, " winning is ",
@@ -103,6 +248,260 @@ server <- function(input, output) {
     output$nba_acc <- renderText({
         paste("The NBA model's accuracy is about", 
               round(nba_acc*100), "percent accurate.")
+    })
+    output$mc_setup <- renderText({
+        home_team <- input$mc_home
+        vis_team <- input$mc_away
+        
+        avg_3pt_rate_off <- mean(offence_stats$FG3_rate)/100
+        avg_2pt_rate_off <- mean(offence_stats$FG2_rate)/100
+        avg_2pt_pct_off <- mean(offence_stats$FG2_pct)/100
+        avg_3pt_pct_off <- mean(offence_stats$FG3_pct)/100
+        avg_ft_pct_off <- mean(offence_stats$`FT%`)/100
+        
+        ### home ------------
+        # get offence numbers
+        home_3pt_rate_off <- sqldf(paste("SELECT FG3_rate from offence_stats where Team is '", 
+                                         home_team, "'", sep = ""))[1, 1]/100
+        home_2pt_rate_off <- sqldf(paste("SELECT FG2_rate from offence_stats where Team is '", 
+                                         home_team, "'", sep = ""))[1, 1]/100
+        home_2pt_pct_off <- sqldf(paste("SELECT FG2_pct from offence_stats where Team is '", 
+                                        home_team, "'", sep = ""))[1, 1]/100
+        home_3pt_pct_off <- sqldf(paste("SELECT FG3_pct from offence_stats where Team is '", 
+                                        home_team, "'", sep = ""))[1, 1]/100
+        home_ft_pct_off <- sqldf(paste("SELECT `FT%` from offence_stats where Team is '", 
+                                       home_team, "'", sep = ""))[1, 1]/100
+        
+        ### rebound, tov, free throw numbers
+        
+        
+        home_orb_pct_off <- sqldf(paste("SELECT orb_percent_off from advanced_data_home where Team_name is '", 
+                                        home_team, "'", sep = ""))[1,1]/100
+        home_orb_pct_def <- sqldf(paste("SELECT orb_percent_def from advanced_data_home where Team_name is '", 
+                                        home_team, "'", sep = ""))[1,1]/100
+        
+        home_ft_rate_off <- sqldf(paste("SELECT ft_rate_off from advanced_data_home where Team_name is '", 
+                                        home_team, "'", sep = ""))[1,1]/100
+        home_ft_rate_def <- sqldf(paste("SELECT ft_rate_def from advanced_data_home where Team_name is '", 
+                                        home_team, "'", sep = ""))[1,1]/100
+        
+        home_tov_pct_off <- sqldf(paste("SELECT tov_percent_off from advanced_data_home where Team_name is '", 
+                                        home_team, "'", sep = ""))[1,1]/100
+        home_tov_pct_def <- sqldf(paste("SELECT tov_percent_def from advanced_data_home where Team_name is '", 
+                                        home_team, "'", sep = ""))[1,1]/100
+        
+        ## get defense numbers
+        home_3pt_rate_def <- sqldf(paste("SELECT FG3_rate from defence_stats where Team is '", 
+                                         home_team, "'", sep = ""))[1, 1]/100
+        home_2pt_rate_def <- sqldf(paste("SELECT FG2_rate from defence_stats where Team is '", 
+                                         home_team, "'", sep = ""))[1, 1]/100
+        home_2pt_pct_def <- sqldf(paste("SELECT FG2_pct from defence_stats where Team is '", 
+                                        home_team, "'", sep = ""))[1, 1]/100
+        home_3pt_pct_def <- sqldf(paste("SELECT FG3_pct from defence_stats where Team is '", 
+                                        home_team, "'", sep = ""))[1, 1]/100
+        home_ft_pct_def <- sqldf(paste("SELECT `FT%` from defence_stats where Team is '", 
+                                       home_team, "'", sep = ""))[1, 1]/100
+        
+        ### visitor -------
+        # get offence numbers
+        
+        vis_3pt_rate_off <- sqldf(paste("SELECT FG3_rate from offence_stats where Team is '", 
+                                        vis_team, "'", sep = ""))[1, 1]/100
+        vis_2pt_rate_off <- sqldf(paste("SELECT FG2_rate from offence_stats where Team is '", 
+                                        vis_team, "'", sep = ""))[1, 1]/100
+        vis_2pt_pct_off <- sqldf(paste("SELECT FG2_pct from offence_stats where Team is '", 
+                                       vis_team, "'", sep = ""))[1, 1]/100
+        vis_3pt_pct_off <- sqldf(paste("SELECT FG3_pct from offence_stats where Team is '", 
+                                       vis_team, "'", sep = ""))[1, 1]/100
+        vis_ft_pct_off <- sqldf(paste("SELECT `FT%` from offence_stats where Team is '", 
+                                      vis_team, "'", sep = ""))[1, 1]/100
+        
+        ### rebound numbers
+        vis_orb_rate_off <- sqldf(paste("SELECT orb_percent_off from advanced_data_visitor where Team_name is '", 
+                                        home_team, "'", sep = ""))[1,1]/100
+        vis_orb_rate_def <- sqldf(paste("SELECT orb_percent_def from advanced_data_visitor where Team_name is '", 
+                                        home_team, "'", sep = ""))[1,1]/100
+        
+        vis_ft_rate_off <- sqldf(paste("SELECT ft_rate_off from advanced_data_visitor where Team_name is '", 
+                                       home_team, "'", sep = ""))[1,1]/100
+        vis_ft_rate_def <- sqldf(paste("SELECT ft_rate_def from advanced_data_visitor where Team_name is '", 
+                                       home_team, "'", sep = ""))[1,1]/100
+        
+        vis_tov_pct_off <- sqldf(paste("SELECT tov_percent_off from advanced_data_visitor where Team_name is '", 
+                                       home_team, "'", sep = ""))[1,1]/100
+        vis_tov_pct_def <- sqldf(paste("SELECT tov_percent_def from advanced_data_visitor where Team_name is '", 
+                                       home_team, "'", sep = ""))[1,1]/100
+        
+        
+        ## get defense numbers
+        vis_3pt_rate_def <- sqldf(paste("SELECT FG3_rate from defence_stats where Team is '", 
+                                        vis_team, "'", sep = ""))[1, 1]/100
+        vis_2pt_rate_def <- sqldf(paste("SELECT FG2_rate from defence_stats where Team is '", 
+                                        vis_team, "'", sep = ""))[1, 1]/100
+        vis_2pt_pct_def <- sqldf(paste("SELECT FG2_pct from defence_stats where Team is '", 
+                                       vis_team, "'", sep = ""))[1, 1]/100
+        vis_3pt_pct_def <- sqldf(paste("SELECT FG3_pct from defence_stats where Team is '", 
+                                       vis_team, "'", sep = ""))[1, 1]/100
+        vis_ft_pct_def <- sqldf(paste("SELECT `FT%` from defence_stats where Team is '", 
+                                      vis_team, "'", sep = ""))[1, 1]/100
+        
+        
+        ## get home difference vs average --------
+        
+        #offence
+        home_3pt_rate_off.dif <- home_3pt_rate_off - avg_3pt_rate_off
+        home_2pt_rate_off.dif <- home_2pt_rate_off - avg_2pt_rate_off
+        home_2pt_pct_off.dif <- home_2pt_pct_off - avg_2pt_pct_off
+        home_3pt_pct_off.dif <- home_3pt_pct_off - avg_3pt_pct_off
+        home_ft_pct_off.dif <- home_ft_pct_off - avg_ft_pct_off
+        
+        #defence
+        home_3pt_rate_def.dif <- home_3pt_rate_def - avg_3pt_rate_off
+        home_2pt_rate_def.dif <- home_2pt_rate_def - avg_2pt_rate_off
+        home_2pt_pct_def.dif <- home_2pt_pct_def - avg_2pt_pct_off
+        home_3pt_pct_def.dif <- home_3pt_pct_def - avg_3pt_pct_off
+        home_ft_pct_def.dif <- home_ft_pct_def - avg_ft_pct_off
+        
+        #reb
+        home_orb_pct_off.dif <- sqldf(paste("SELECT orb_percent_off from advanced_data_home where Team_name is '", 
+                                            home_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT orb_percent_off from advanced_data_home where Team_name is 'average'")[1,1]/100
+        home_orb_pct_def.dif <- sqldf(paste("SELECT orb_percent_def from advanced_data_home where Team_name is '", 
+                                            home_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT orb_percent_def from advanced_data_home where Team_name is 'average'")[1,1]/100
+        
+        #ft
+        home_ft_rate_off.dif <- sqldf(paste("SELECT ft_rate_off from advanced_data_home where Team_name is '", 
+                                            home_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT ft_rate_off from advanced_data_home where Team_name is 'average'")[1,1]/100
+        home_ft_rate_def.dif <- sqldf(paste("SELECT ft_rate_def from advanced_data_home where Team_name is '", 
+                                            home_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT ft_rate_def from advanced_data_home where Team_name is 'average'")[1,1]/100
+        
+        #tov
+        home_tov_pct_off.dif <- sqldf(paste("SELECT tov_percent_off from advanced_data_home where Team_name is '", 
+                                            home_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT tov_percent_off from advanced_data_home where Team_name is 'average'")[1,1]/100
+        home_tov_pct_def.dif <- sqldf(paste("SELECT tov_percent_def from advanced_data_home where Team_name is '", 
+                                            home_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT tov_percent_def from advanced_data_home where Team_name is 'average'")[1,1]/100
+        
+        ## get visitor difference vs average ------
+        
+        #offence
+        vis_3pt_rate_off.dif <- vis_3pt_rate_off - avg_3pt_rate_off
+        vis_2pt_rate_off.dif <- vis_2pt_rate_off - avg_2pt_rate_off
+        vis_2pt_pct_off.dif <- vis_2pt_pct_off - avg_2pt_pct_off
+        vis_3pt_pct_off.dif <- vis_3pt_pct_off - avg_3pt_pct_off
+        vis_ft_pct_off.dif <- vis_ft_pct_off - avg_ft_pct_off
+        
+        #defence
+        vis_3pt_rate_def.dif <- vis_3pt_rate_def - avg_3pt_rate_off
+        vis_2pt_rate_def.dif <- vis_2pt_rate_def - avg_2pt_rate_off
+        vis_2pt_pct_def.dif <- vis_2pt_pct_def - avg_2pt_pct_off
+        vis_3pt_pct_def.dif <- vis_3pt_pct_def - avg_3pt_pct_off
+        vis_ft_pct_def.dif <- vis_ft_pct_def - avg_ft_pct_off
+        
+        #reb
+        vis_orb_pct_off.dif <- sqldf(paste("SELECT orb_percent_off from advanced_data_visitor where Team_name is '", 
+                                           vis_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT orb_percent_off from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        vis_orb_pct_def.dif <- sqldf(paste("SELECT orb_percent_def from advanced_data_visitor where Team_name is '", 
+                                           vis_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT orb_percent_def from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        
+        #ft
+        vis_ft_rate_off.dif <- sqldf(paste("SELECT ft_rate_off from advanced_data_visitor where Team_name is '", 
+                                           vis_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT ft_rate_off from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        vis_ft_rate_def.dif <- sqldf(paste("SELECT ft_rate_def from advanced_data_visitor where Team_name is '", 
+                                           vis_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT ft_rate_def from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        
+        #tov
+        vis_tov_pct_off.dif <- sqldf(paste("SELECT tov_percent_off from advanced_data_visitor where Team_name is '", 
+                                           vis_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT tov_percent_off from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        vis_tov_pct_def.dif <- sqldf(paste("SELECT tov_percent_def from advanced_data_visitor where Team_name is '", 
+                                           vis_team, "'", sep = ""))[1,1]/100 - 
+            sqldf("SELECT tov_percent_def from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        
+        
+        ### get difference sums
+        
+        #home off
+        diff_sum3pt_rate <- home_3pt_rate_off.dif + vis_3pt_rate_def.dif
+        diff_sum2pt_rate<- home_2pt_rate_off.dif + vis_2pt_rate_def.dif
+        diff_sum2pt_pct <- home_2pt_pct_off.dif + vis_2pt_pct_def.dif
+        diff_sum3pt_pct <- home_3pt_pct_off.dif + vis_3pt_pct_def.dif
+        diff_sumft_pct <- home_ft_pct_off.dif + vis_ft_pct_def.dif
+        diff_sumorb_pct <- home_orb_pct_off.dif + vis_orb_pct_def.dif
+        diff_sumft_rate <- home_ft_rate_off.dif + vis_ft_rate_def.dif
+        diff_sumtov_rate <- home_tov_pct_off.dif + vis_tov_pct_def.dif
+        
+        ### get adjusted values
+        
+        adj_3pt_rate <- diff_sum3pt_rate + avg_3pt_rate_off
+        adj_2pt_rate <- diff_sum2pt_rate + avg_2pt_rate_off
+        adj_2pt_pct <- diff_sum2pt_pct + avg_2pt_pct_off
+        adj_3pt_pct <- diff_sum3pt_pct + avg_3pt_pct_off
+        adj_ft_pct <- diff_sumft_pct + avg_ft_pct_off
+        adj_orb_pct <- diff_sumorb_pct + sqldf("SELECT tov_percent_def from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        adj_ft_rate <- diff_sumft_rate + sqldf("SELECT ft_rate_def from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        adj_tov_rate <- diff_sumtov_rate + sqldf("SELECT tov_percent_def from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        
+        fga_pct <- 1 - adj_ft_rate - adj_tov_rate
+        prob_2pt <- adj_2pt_rate * fga_pct
+        prob_3pt <- adj_3pt_rate * fga_pct
+        
+        
+        probs <- c(adj_tov_rate, prob_2pt, prob_3pt, adj_ft_rate)
+        p_2pt <- adj_2pt_pct
+        p_3pt <- adj_3pt_pct
+        p_reb <- adj_orb_pct
+        p_ft <- adj_ft_pct
+        
+        #home score
+        home <- simulate_score(probs, p_2pt, p_3pt, 
+                               p_reb, p_ft, 10000)
+        
+        #visitor off --------
+        
+        diff_sum3pt_rate <- vis_3pt_rate_off.dif + home_3pt_rate_def.dif
+        diff_sum2pt_rate<- vis_2pt_rate_off.dif + home_2pt_rate_def.dif
+        diff_sum2pt_pct <- vis_2pt_pct_off.dif + home_2pt_pct_def.dif
+        diff_sum3pt_pct <- vis_3pt_pct_off.dif + home_3pt_pct_def.dif
+        diff_sumft_pct <- vis_ft_pct_off.dif + home_ft_pct_def.dif
+        diff_sumorb_pct <- vis_orb_pct_off.dif + home_orb_pct_def.dif
+        diff_sumft_rate <- vis_ft_rate_off.dif + home_ft_rate_def.dif
+        diff_sumtov_rate <- vis_tov_pct_off.dif + home_tov_pct_def.dif
+        
+        adj_3pt_rate <- diff_sum3pt_rate + avg_3pt_rate_off
+        adj_2pt_rate <- diff_sum2pt_rate + avg_2pt_rate_off
+        adj_2pt_pct <- diff_sum2pt_pct + avg_2pt_pct_off
+        adj_3pt_pct <- diff_sum3pt_pct + avg_3pt_pct_off
+        adj_ft_pct <- diff_sumft_pct + avg_ft_pct_off
+        adj_orb_pct <- diff_sumorb_pct + sqldf("SELECT tov_percent_def from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        adj_ft_rate <- diff_sumft_rate + sqldf("SELECT ft_rate_def from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        adj_tov_rate <- diff_sumtov_rate + sqldf("SELECT tov_percent_def from advanced_data_visitor where Team_name is 'average'")[1,1]/100
+        
+        fga_pct <- 1 - adj_ft_rate - adj_tov_rate
+        prob_2pt <- adj_2pt_rate * fga_pct
+        prob_3pt <- adj_3pt_rate * fga_pct
+        
+        
+        probs <- c(adj_tov_rate, prob_2pt, prob_3pt, adj_ft_rate)
+        p_2pt <- adj_2pt_pct
+        p_3pt <- adj_3pt_pct
+        p_reb <- adj_orb_pct
+        p_ft <- adj_ft_pct
+        
+        #visitor score
+        visitor <- simulate_score(probs, p_2pt, p_3pt, 
+                                  p_reb, p_ft, 10000)
+        
+        print(paste("Based on 10000 simulations, the predicted score is ", home_team, 
+                    ": ", home, ", ", vis_team, ": ", visitor, sep = ""))
     })
 }
 

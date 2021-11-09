@@ -2,6 +2,8 @@ library(tidyverse)
 library(rvest)
 library(janitor)
 library(rstanarm)
+library(gam)
+library(lubridate)
 
 link <- "https://cleaningtheglass.com/stats/league/fourfactors/"
 page <- read_html(link)
@@ -106,30 +108,117 @@ matchups <- matchups %>%
 
 # ----------------------------------- GET SCHEDULE ---------------------------------------
 
-# Data from https://fixturedownload.com
+# Data from basketball reference
 
-link <- "https://fixturedownload.com/results/nba-2021"
-page <- read_html(link)
-table <- page %>% html_table(fill = T)
-schedule <- table[[1]]
 
-schedule <- schedule %>% 
-  drop_na() %>% 
-  filter(Result != "-")
+link <- "https://www.basketball-reference.com/leagues/NBA_2022_games.html"
+table <- link %>% 
+  read_html() %>% 
+  html_table()
+table <- table[[1]]
+table <- table[,-7]
+table <- table[,-7]
+colnames(table)[4] <- "visitor_score"
+colnames(table)[6] <- "home_score"
+table <- table %>% 
+  select(-c(`Start (ET)`, Attend., Notes))
 
-schedule <- schedule %>% 
-  rename("home" = `Home Team`,
-         "visitor" = `Away Team`) %>% 
-  separate(Result, into = c("home_score", "visitor_score"), sep = " - ")
+table <- table %>% 
+  select(Date, `Home/Neutral`, `Visitor/Neutral`, home_score, visitor_score)
+schedule <- table %>% 
+  rename("visitor" = `Visitor/Neutral`,
+         "home" = `Home/Neutral`)
 
-schedule$home_score <- as.numeric(schedule$home_score)
-schedule$visitor_score <- as.numeric(schedule$visitor_score)
+schedule_oct <- drop_na(schedule)
 
-schedule$home[schedule$home == "LA Clippers"] <- "Los Angeles Clippers"
-schedule$visitor[schedule$visitor == "LA Clippers"] <- "Los Angeles Clippers"
+
+### November
+
+link <- "https://www.basketball-reference.com/leagues/NBA_2022_games-november.html"
+table <- link %>% 
+  read_html() %>% 
+  html_table()
+table <- table[[1]]
+table <- table[,-7]
+table <- table[,-7]
+colnames(table)[4] <- "visitor_score"
+colnames(table)[6] <- "home_score"
+table <- table %>% 
+  select(-c(`Start (ET)`, Attend., Notes))
+
+
+table <- table %>% 
+  select(Date, `Home/Neutral`, `Visitor/Neutral`, home_score, visitor_score)
+schedule <- table %>% 
+  rename("visitor" = `Visitor/Neutral`,
+         "home" = `Home/Neutral`)
+
+schedule_nov <- drop_na(schedule)
+
+schedule <- rbind(schedule_oct, schedule_nov)
+
+#### Find Back to Backs
+# reformat dates
+
+dates <- schedule$Date
+
+dates <- lubridate::mdy(dates)
+
+schedule$Date <- dates
+
+home_schedule <- schedule %>% 
+  group_by(home, Date) %>% 
+  summarise(played = n())
+
+visitor_schedule <- schedule %>% 
+  group_by(visitor, Date) %>% 
+  summarise(played = n())
+
+team_schedules <- rbind(home_schedule, visitor_schedule)
+
+team_schedules <- team_schedules %>% 
+  mutate(team = ifelse(is.na(home), visitor, home)) %>% 
+  arrange(team, Date) %>% 
+  select(-played)
+
+dates <- team_schedules$Date
+
+b2b <- rep(NA, length(dates))
+for(i in 2:length(dates)){
+  if(dates[i] == dates[i-1] + 1){
+    b2b[i] <- 1
+  }
+  else{
+    b2b[i] <- 0
+  }
+}
+
+team_schedules$b2b <- b2b
+team_schedules[1, 5] = 0
+
+team_schedules <- team_schedules %>% 
+  ungroup() %>% 
+  select(c(Date, team, b2b))
+
+team_schedules$Date <- as.character(team_schedules$Date)
+
+## bring back to back into schedules
+schedule$Date <- as.character(schedule$Date)
+
+schedule_homeb2b <- left_join(schedule, team_schedules, 
+                                   by = c("Date", "home" = "team")) %>% 
+  rename("b2b_home" = b2b)
+
+schedule_visitorb2b <- left_join(schedule, team_schedules, 
+                              by = c("Date", "visitor" = "team")) %>% 
+  rename("b2b_visitor" = b2b)
+
+schedule_bothb2b <- left_join(schedule_homeb2b, schedule_visitorb2b)
 
 
 # ---------------------------------- MODEL BUILD -----------------------------------------------
+
+## original model
 
 nba_schedule <- left_join(schedule, data_test20,
                           by = c("home" = "Team_name"))
@@ -164,16 +253,168 @@ matchups <- matchups %>%
          pts_poss_def = pts_poss_def.x - pts_poss_def.y)
 
 nba_schedule <- nba_schedule %>% 
-  select(-c(`Round Number`, Date, Location, Team.x, Team.y))
-
-model <- glm(home_win ~ . - home - visitor - home_score - visitor_score -
-               W.x - W.y - L.x - L.y,
-             data = nba_schedule, family = binomial())
+  select(-c(Team.x, Team.y, Date))
 
 model_stan <- stan_glm(home_win ~ . - home - visitor - home_score - visitor_score -
+                                 W.x - W.y - L.x - L.y,
+                               data = nba_schedule, family = binomial(),
+                               refresh = 0)
+
+model <- gam(home_win ~ . - home - visitor - home_score - visitor_score -
+                       W.x - W.y - L.x - L.y,
+                     data = nba_schedule, family = binomial())
+
+## home_b2b
+
+nba_schedule_homeb2b <- left_join(schedule_homeb2b, data_test20,
+                          by = c("home" = "Team_name"))
+nba_schedule_homeb2b <- left_join(nba_schedule_homeb2b, data_test20,
+                          by = c("visitor" = "Team_name"))
+nba_schedule_homeb2b <- nba_schedule_homeb2b %>% 
+  mutate(home_win = ifelse(home_score > visitor_score, 1, 0))
+
+# create variables for differences
+nba_schedule_homeb2b <- nba_schedule_homeb2b %>% 
+  mutate(efg_diff_off = efg_percent_off.x - efg_percent_off.y,
+         efg_diff_def = efg_percent_def.x - efg_percent_def.y,
+         tov_diff_off = tov_percent_off.x - tov_percent_off.y,
+         tov_diff_def = tov_percent_def.x - tov_percent_def.y,
+         orb_diff_off = orb_percent_off.x - orb_percent_off.y,
+         orb_diff_def = orb_percent_def.x - orb_percent_def.y,
+         ft_diff_off = ft_rate_off.x - ft_rate_off.y,
+         ft_diff_def = ft_rate_def.x - ft_rate_def.y,
+         pts_poss_off = pts_poss_off.x - pts_poss_off.y,
+         pts_poss_def = pts_poss_def.x - pts_poss_def.y)
+
+matchups <- matchups %>% 
+  mutate(efg_diff_off = efg_percent_off.x - efg_percent_off.y,
+         efg_diff_def = efg_percent_def.x - efg_percent_def.y,
+         tov_diff_off = tov_percent_off.x - tov_percent_off.y,
+         tov_diff_def = tov_percent_def.x - tov_percent_def.y,
+         orb_diff_off = orb_percent_off.x - orb_percent_off.y,
+         orb_diff_def = orb_percent_def.x - orb_percent_def.y,
+         ft_diff_off = ft_rate_off.x - ft_rate_off.y,
+         ft_diff_def = ft_rate_def.x - ft_rate_def.y,
+         pts_poss_off = pts_poss_off.x - pts_poss_off.y,
+         pts_poss_def = pts_poss_def.x - pts_poss_def.y)
+
+nba_schedule_homeb2b <- nba_schedule_homeb2b %>% 
+  select(-c(Team.x, Team.y, Date))
+
+model_stan_homeb2b <- stan_glm(home_win ~ . - home - visitor - home_score - visitor_score -
                          W.x - W.y - L.x - L.y,
-                       data = nba_schedule, family = binomial(),
+                       data = nba_schedule_homeb2b, family = binomial(),
                        refresh = 0)
+
+model_homeb2b <- gam(home_win ~ . - home - visitor - home_score - visitor_score -
+               W.x - W.y - L.x - L.y,
+             data = nba_schedule_homeb2b, family = binomial())
+
+## visitor_b2b
+
+nba_schedule_homeb2b <- left_join(schedule_homeb2b, data_test20,
+                                  by = c("home" = "Team_name"))
+nba_schedule_homeb2b <- left_join(nba_schedule_homeb2b, data_test20,
+                                  by = c("visitor" = "Team_name"))
+nba_schedule_homeb2b <- nba_schedule_homeb2b %>% 
+  mutate(home_win = ifelse(home_score > visitor_score, 1, 0))
+
+# create variables for differences
+nba_schedule_visitorb2b <- left_join(schedule_visitorb2b, data_test20,
+                                  by = c("home" = "Team_name"))
+nba_schedule_visitorb2b <- left_join(nba_schedule_visitorb2b, data_test20,
+                                  by = c("visitor" = "Team_name"))
+nba_schedule_visitorb2b <- nba_schedule_visitorb2b %>% 
+  mutate(home_win = ifelse(home_score > visitor_score, 1, 0))
+
+nba_schedule_visitorb2b <- nba_schedule_visitorb2b %>% 
+  mutate(efg_diff_off = efg_percent_off.x - efg_percent_off.y,
+         efg_diff_def = efg_percent_def.x - efg_percent_def.y,
+         tov_diff_off = tov_percent_off.x - tov_percent_off.y,
+         tov_diff_def = tov_percent_def.x - tov_percent_def.y,
+         orb_diff_off = orb_percent_off.x - orb_percent_off.y,
+         orb_diff_def = orb_percent_def.x - orb_percent_def.y,
+         ft_diff_off = ft_rate_off.x - ft_rate_off.y,
+         ft_diff_def = ft_rate_def.x - ft_rate_def.y,
+         pts_poss_off = pts_poss_off.x - pts_poss_off.y,
+         pts_poss_def = pts_poss_def.x - pts_poss_def.y)
+
+matchups <- matchups %>% 
+  mutate(efg_diff_off = efg_percent_off.x - efg_percent_off.y,
+         efg_diff_def = efg_percent_def.x - efg_percent_def.y,
+         tov_diff_off = tov_percent_off.x - tov_percent_off.y,
+         tov_diff_def = tov_percent_def.x - tov_percent_def.y,
+         orb_diff_off = orb_percent_off.x - orb_percent_off.y,
+         orb_diff_def = orb_percent_def.x - orb_percent_def.y,
+         ft_diff_off = ft_rate_off.x - ft_rate_off.y,
+         ft_diff_def = ft_rate_def.x - ft_rate_def.y,
+         pts_poss_off = pts_poss_off.x - pts_poss_off.y,
+         pts_poss_def = pts_poss_def.x - pts_poss_def.y)
+
+nba_schedule_visitorb2b <- nba_schedule_visitorb2b %>% 
+  select(-c(Team.x, Team.y, Date))
+
+model_stan_visitorb2b <- stan_glm(home_win ~ . - home - visitor - home_score - visitor_score -
+                         W.x - W.y - L.x - L.y,
+                       data = nba_schedule_visitorb2b, family = binomial(),
+                       refresh = 0)
+
+model_visitorb2b <- gam(home_win ~ . - home - visitor - home_score - visitor_score -
+               W.x - W.y - L.x - L.y,
+             data = nba_schedule_visitorb2b, family = binomial())
+
+## both_b2b
+
+nba_schedule_bothb2b <- left_join(schedule_bothb2b, data_test20,
+                                  by = c("home" = "Team_name"))
+nba_schedule_bothb2b <- left_join(nba_schedule_bothb2b, data_test20,
+                                  by = c("visitor" = "Team_name"))
+nba_schedule_bothb2b <- nba_schedule_bothb2b %>% 
+  mutate(home_win = ifelse(home_score > visitor_score, 1, 0))
+
+# create variables for differences
+nba_schedule_bothb2b <- left_join(schedule_bothb2b, data_test20,
+                                     by = c("home" = "Team_name"))
+nba_schedule_bothb2b <- left_join(nba_schedule_bothb2b, data_test20,
+                                     by = c("visitor" = "Team_name"))
+nba_schedule_bothb2b <- nba_schedule_bothb2b %>% 
+  mutate(home_win = ifelse(home_score > visitor_score, 1, 0))
+
+nba_schedule_bothb2b <- nba_schedule_bothb2b %>% 
+  mutate(efg_diff_off = efg_percent_off.x - efg_percent_off.y,
+         efg_diff_def = efg_percent_def.x - efg_percent_def.y,
+         tov_diff_off = tov_percent_off.x - tov_percent_off.y,
+         tov_diff_def = tov_percent_def.x - tov_percent_def.y,
+         orb_diff_off = orb_percent_off.x - orb_percent_off.y,
+         orb_diff_def = orb_percent_def.x - orb_percent_def.y,
+         ft_diff_off = ft_rate_off.x - ft_rate_off.y,
+         ft_diff_def = ft_rate_def.x - ft_rate_def.y,
+         pts_poss_off = pts_poss_off.x - pts_poss_off.y,
+         pts_poss_def = pts_poss_def.x - pts_poss_def.y)
+
+matchups <- matchups %>% 
+  mutate(efg_diff_off = efg_percent_off.x - efg_percent_off.y,
+         efg_diff_def = efg_percent_def.x - efg_percent_def.y,
+         tov_diff_off = tov_percent_off.x - tov_percent_off.y,
+         tov_diff_def = tov_percent_def.x - tov_percent_def.y,
+         orb_diff_off = orb_percent_off.x - orb_percent_off.y,
+         orb_diff_def = orb_percent_def.x - orb_percent_def.y,
+         ft_diff_off = ft_rate_off.x - ft_rate_off.y,
+         ft_diff_def = ft_rate_def.x - ft_rate_def.y,
+         pts_poss_off = pts_poss_off.x - pts_poss_off.y,
+         pts_poss_def = pts_poss_def.x - pts_poss_def.y)
+
+nba_schedule_bothb2b <- nba_schedule_bothb2b %>% 
+  select(-c(Team.x, Team.y, Date))
+
+model_stan_bothb2b <- stan_glm(home_win ~ . - home - visitor - home_score - visitor_score -
+                         W.x - W.y - L.x - L.y,
+                       data = nba_schedule_bothb2b, family = binomial(),
+                       refresh = 0)
+
+model_bothb2b <- gam(home_win ~ . - home - visitor - home_score - visitor_score -
+               W.x - W.y - L.x - L.y,
+             data = nba_schedule_bothb2b, family = binomial())
 
 ## accuracy check
 
@@ -188,7 +429,13 @@ schedule <- schedule %>%
          stan_correct = ifelse(stan_pred == home_win, 1, 0),
          glm_correct = ifelse(glm_pred == home_win, 1, 0))
 
-nba_acc <- sum(schedule$glm_correct, na.rm = T)/64
+
+## overall check
+
+nba_acc <- (sum(schedule$glm_correct, na.rm = T)/nrow(schedule) +
+              sum(schedule$stan_correct, na.rm = T)/nrow(schedule))/2
+
+### full model
 
 matchups <- matchups %>% 
   rename("home" = home_teams,
@@ -197,6 +444,13 @@ matchups <- matchups %>%
 matchups$home_score <- rep(0, nrow(matchups))
 matchups$visitor_score <- rep(0, nrow(matchups))
 
+matchups <- matchups %>% 
+  select(-c(Team.x, Team.y))
+
+matchups_homeb2b <- matchups
+matchups_visitorb2b <- matchups
+matchups_bothb2b <- matchups
+
 matchups$estimate <- predict(model_stan, newdata = matchups,
                              type = "response")
 matchups$estimate_glm <- predict(model, newdata = matchups,
@@ -204,5 +458,58 @@ matchups$estimate_glm <- predict(model, newdata = matchups,
 matchups <- matchups %>% 
   mutate(avg_estimate = 0.5*estimate + 0.5*estimate_glm)
 
+
+### homeb2b
+
+home_b2b <- rep(1, nrow(matchups_homeb2b))
+
+matchups_homeb2b$b2b_home <- home_b2b
+
+matchups_homeb2b$estimate <- predict(model_stan_homeb2b, newdata = matchups_homeb2b,
+                             type = "response")
+matchups_homeb2b$estimate_glm <- predict(model, newdata = matchups_homeb2b,
+                                 type = "response")
+matchups_homeb2b <- matchups_homeb2b %>% 
+  mutate(avg_estimate = 0.5*estimate + 0.5*estimate_glm)
+
+### visitorb2b
+
+visitor_b2b <- rep(1, nrow(matchups_visitorb2b))
+
+matchups_visitorb2b$b2b_visitor <- visitor_b2b
+
+matchups_visitorb2b$home_score <- rep(0, nrow(matchups_visitorb2b))
+matchups_visitorb2b$visitor_score <- rep(0, nrow(matchups_visitorb2b))
+
+matchups_visitorb2b$estimate <- predict(model_stan_visitorb2b, newdata = matchups_visitorb2b,
+                                     type = "response")
+matchups_visitorb2b$estimate_glm <- predict(model_visitorb2b, newdata = matchups_visitorb2b,
+                                         type = "response")
+matchups_visitorb2b <- matchups_visitorb2b %>% 
+  mutate(avg_estimate = 0.5*estimate + 0.5*estimate_glm)
+
+### bothb2b
+
+home_b2b <- rep(1, nrow(matchups_bothb2b))
+visitor_b2b <- rep(1, nrow(matchups_bothb2b))
+
+matchups_bothb2b$b2b_home <- home_b2b
+matchups_bothb2b$b2b_visitor <- visitor_b2b
+
+matchups_bothb2b$home_score <- rep(0, nrow(matchups_bothb2b))
+matchups_bothb2b$visitor_score <- rep(0, nrow(matchups_bothb2b))
+
+matchups_bothb2b$estimate <- predict(model_stan_bothb2b, newdata = matchups_bothb2b,
+                                        type = "response")
+matchups_bothb2b$estimate_glm <- predict(model_bothb2b, newdata = matchups_bothb2b,
+                                            type = "response")
+matchups_bothb2b <- matchups_bothb2b %>% 
+  mutate(avg_estimate = 0.5*estimate + 0.5*estimate_glm)
+
+### save
 write_rds(matchups, "predictors/nba_matchups.rds")
+write_rds(matchups_visitorb2b, "predictors/nba_matchups_visitorb2b.rds")
+write_rds(matchups_homeb2b, "predictors/nba_matchups_homeb2b.rds")
+write_rds(matchups_bothb2b, "predictors/nba_matchups_bothb2b.rds")
 write_rds(nba_acc, "predictors/nba_acc.rds")
+

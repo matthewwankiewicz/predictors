@@ -349,3 +349,4 @@ write_rds(complete_data, "models/complete_data.rds")
 write_rds(schedule2020, "models/nfl_schedule2020.rds")
 write_rds(schedule2021, "models/nfl_schedule2021.rds")
 write_rds(team_stats21, "models/team_stats.rds")
+

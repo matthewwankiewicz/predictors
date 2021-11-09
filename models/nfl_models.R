@@ -1,5 +1,6 @@
 library(elo)
 library(rstanarm)
+library(gam)
 
 schedule2020 <- read_rds("models/nfl_schedule2020.rds")
 schedule2021 <- read_rds("models/nfl_schedule2021.rds")
@@ -23,7 +24,7 @@ sum(schedule2020_21$correct, na.rm = T)/376
 
 ## Make GLM Model --------------------------------------------------
 
-model <- glm(home_win ~ defpass_att.x + defpass_att.y + defpass_comp.x + defpass_comp.y +
+model <- gam(home_win ~ defpass_att.x + defpass_att.y + defpass_comp.x + defpass_comp.y +
                defpass_comp_pct.x + defpass_comp_pct.y + defyds_att.x + defyds_att.y +
                defpass_yds.x + defpass_yds.y + defpass_td.x + defpass_td.y + 
                defint.x + defint.y + defpass_rating.x + defpass_rating.y + 
@@ -102,16 +103,13 @@ complete_data$stan_estimate <- predict(stan_model, newdata = complete_data,
 
 complete_data <- complete_data %>% 
   mutate(glm_pred = ifelse(glm_estimate > 0.49, 1, 0),
-         glm_correct = ifelse(home_win == glm_pred, 1, 0),
-         stan_pred = ifelse(stan_estimate > 0.49, 1, 0),
-         stan_correct = ifelse(home_win == stan_pred, 1, 0))
+         glm_correct = ifelse(home_win == glm_pred, 1, 0))
 
-nfl_acc <- sum(complete_data$stan_correct, na.rm = T)/376
+nfl_acc <- sum(complete_data$glm_correct, na.rm = T)/390
 
 
 matchups <- matchups %>% 
-  mutate(avg_glm = 0.5*stan_estimate + 0.5*model_estimate,
-         avg_estimate = 0.8*model_estimate + 0.2*elo_estimate)
+  mutate(avg_estimate = 0.5*stan_estimate + 0.5*model_estimate)
 
 
 
