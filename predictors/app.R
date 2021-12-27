@@ -131,6 +131,16 @@ pg_stats <- read_rds("pg_stats.rds")
 pf_stats <- read_rds("pf_stats.rds")
 sg_stats <- read_rds("sg_stats.rds")
 c_stats <- read_rds("c_stats.rds")
+# qb_rushing <- read_rds("qb_rushing.rds")
+# qb_passing <- read_rds("qb_passing.rds")
+# rb_rushing <- read_rds("rb_rushing.rds")
+# rb_passing <- read_rds("rb_passing.rds")
+# wr_passing <- read_rds("WR_passing.rds")
+# te_passing <- read_rds("TE_passing.rds")
+# nfl_player_stats <- read_rds("nfl_player_stats.rds")
+
+
+
 
 gamelogs <- gamelogs %>% 
     drop_na(PTS)
@@ -228,6 +238,7 @@ ui <- navbarPage("Predictors",
                      plotOutput('hist'),
                      dataTableOutput('last_10')
                  ))),
+    
     tabPanel("About",
              mainPanel(h1("About the Model"),
                        "This app contains models to predict outcomes for various sport matches. The accuracies for each model can be seen below:
