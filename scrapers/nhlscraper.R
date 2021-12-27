@@ -13,7 +13,7 @@ stats <- table[[2]]
 stats$Team <- teams
 
 
-stats[32, 15] <- "Montréal Canadiens"
+stats[29, 15] <- "Montréal Canadiens"
 
 # schedule
 

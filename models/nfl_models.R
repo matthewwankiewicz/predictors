@@ -7,20 +7,18 @@ schedule2021 <- read_rds("models/nfl_schedule2021.rds")
 complete_data <- read_rds("models/complete_data.rds")
 team_stats <- read_rds("models/team_stats.rds")
 
-schedule2020_21 <- rbind(schedule2020, schedule2021)
-sked <- schedule2020_21
 
 ## Make ELO Model --------------------------------------------------
-results <- elo.run(score(home_score, visitor_score) ~ adjust(home, 10) + visitor,
-                   data = schedule2020_21, k = 100)
+results <- elo.run(score(home_score, visitor_score) ~ adjust(home, 5) + visitor,
+                   data = schedule2020, k = 100)
 
-schedule2020_21$estimate <- predict(results, newdata = schedule2020_21,
+schedule2021$estimate <- predict(results, newdata = schedule2021,
                                     type = "response")
 
-schedule2020_21 <- schedule2020_21 %>% 
+schedule2021 <- schedule2021 %>% 
   mutate(pred = ifelse(estimate > 0.49, 1, 0),
          correct = ifelse(home_win == pred, 1, 0))
-sum(schedule2020_21$correct, na.rm = T)/376
+sum(schedule2021$correct, na.rm = T)/376
 
 ## Make GLM Model --------------------------------------------------
 
@@ -105,7 +103,7 @@ complete_data <- complete_data %>%
   mutate(glm_pred = ifelse(glm_estimate > 0.49, 1, 0),
          glm_correct = ifelse(home_win == glm_pred, 1, 0))
 
-nfl_acc <- sum(complete_data$glm_correct, na.rm = T)/390
+nfl_acc <- sum(complete_data$glm_correct, na.rm = T)/405
 
 
 matchups <- matchups %>% 

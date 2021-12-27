@@ -5,9 +5,10 @@ account: wnkwz
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 4937347
-bundleId: 5229229
+bundleId: 5410319
 url: https://wnkwz.shinyapps.io/predictors/
-when: 1636413207.05345
-lastSyncTime: 1636413207.05346
+when: 1640540144.84211
+lastSyncTime: 1640540144.84212
 asMultiple: FALSE
 asStatic: FALSE
+ignoredFiles: team_opp_stats.rds

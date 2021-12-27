@@ -17,4 +17,4 @@ stats <- stats %>%
   mutate(prediction = ifelse(estimate >= 0.5, 1, 0),
          correct = ifelse(prediction == home_win, 1, 0))
 
-sum(stats$correct, na.rm = T)/956
+sum(stats$correct, na.rm = T)/1232
