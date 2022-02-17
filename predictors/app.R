@@ -12,108 +12,6 @@ library(tidyverse)
 library(sqldf)
 library(DT)
 
-simulate_score <- function(probs, p_2pt, p_3pt, p_reb, p_ft, pace, sims){
-    
-    a <- 1
-    pts <- 0
-    
-    while(a <= sims){
-        
-        outcome <- sample(c(1:4), 1, prob = probs)
-        
-        if(outcome == 2){
-            end <- 0
-            while(end < 1){
-                
-                shot_prob <- runif(1)
-                
-                if(shot_prob <= p_2pt){
-                    
-                    pts <- pts + 2
-                    end = 1
-                    
-                }
-                
-                else{
-                    
-                    reb <- runif(1)
-                    if(reb >= p_reb){
-                        
-                        end = 1
-                        
-                    }
-                    
-                }
-                
-            }
-        }
-        
-        if(outcome == 3){
-            end <- 0
-            while(end < 1){
-                
-                shot_prob <- runif(1)
-                
-                if(shot_prob <= p_3pt){
-                    
-                    pts <- pts + 3
-                    end = 1
-                    
-                }
-                
-                else{
-                    
-                    reb <- runif(1)
-                    if(reb >= p_reb){
-                        
-                        end = 1
-                        
-                    }
-                    
-                }
-                
-            }
-            
-        }
-        
-        if(outcome == 4){
-            end <- 0
-            while(end < 1){
-                
-                shot_prob <- runif(1)
-                
-                if(shot_prob <= p_ft){
-                    
-                    pts <- pts + 1
-                    end = 1
-                    
-                }
-                shot_prob <- runif(1)
-                if(shot_prob <= p_ft){
-                    
-                    pts <- pts + 1
-                    end = 1
-                    
-                }
-                
-                else{
-                    
-                    reb <- runif(1)
-                    if(reb >= p_reb){
-                        
-                        end = 1
-                        
-                    }
-                    
-                }
-                
-            }
-        }
-        a = a+1
-    }
-    print((pts/sims)*pace)
-}
-
 nfl_matchups <- read_rds("matchups.rds")
 nba_matchups <- read_rds("nba_matchups.rds")
 nba_matchups_hb2b <- read_rds("nba_matchups_homeb2b.rds")
@@ -131,13 +29,13 @@ pg_stats <- read_rds("pg_stats.rds")
 pf_stats <- read_rds("pf_stats.rds")
 sg_stats <- read_rds("sg_stats.rds")
 c_stats <- read_rds("c_stats.rds")
-# qb_rushing <- read_rds("qb_rushing.rds")
-# qb_passing <- read_rds("qb_passing.rds")
-# rb_rushing <- read_rds("rb_rushing.rds")
-# rb_passing <- read_rds("rb_passing.rds")
-# wr_passing <- read_rds("WR_passing.rds")
-# te_passing <- read_rds("TE_passing.rds")
-# nfl_player_stats <- read_rds("nfl_player_stats.rds")
+qb_rushing <- read_rds("qb_rushing.rds")
+qb_passing <- read_rds("qb_passing.rds")
+rb_rushing <- read_rds("rb_rushing.rds")
+rb_passing <- read_rds("rb_passing.rds")
+wr_passing <- read_rds("WR_passing.rds")
+te_passing <- read_rds("TE_passing.rds")
+player_stats <- read_rds("nfl_player_stats.rds")
 
 
 
@@ -180,33 +78,13 @@ ui <- navbarPage("Predictors",
                                  choices = sort(unique(nba_matchups$visitor))),
                      textInput(inputId = "nba_odds_ff",
                                label = "Odds for Home Team:",
-                               value = "0"),
-                     radioButtons(inputId = "homeb2b",
-                                  label = "Home on back to back?",
-                                  choices = list("Yes", "No")),
-                     radioButtons(inputId = "roadb2b",
-                                  label = "Visitor on back to back?",
-                                  choices = list("Yes", "No"))),
+                               value = "0")),
                  mainPanel(
                      textOutput("nba_match"),
                      tableOutput("nba_matches"),
                      textOutput("nba_setup")
                  ))),
-    tabPanel("Monte Carlo",
-             sidebarLayout(
-                 sidebarPanel(
-                     selectInput(inputId = "mc_home",
-                                 label = "Select Home Team:",
-                                 choices = sort(unique(home_stats$TEAM_NAME))),
-                     selectInput(inputId = "mc_away",
-                                 label = "Select Visiting Team:",
-                                 choices = sort(unique(home_stats$TEAM_NAME)))),
-                 mainPanel(
-                     textOutput("mc_match"),
-                     textOutput("mc_setup"),
-                     DTOutput('mc_breakdown')
-                 ))),
-    tabPanel("Player Sim",
+    tabPanel("NBA Player Sim",
              sidebarLayout(
                  sidebarPanel(
                      selectInput(inputId = "player",
@@ -217,8 +95,10 @@ ui <- navbarPage("Predictors",
                                  choices = sort(unique(pg_stats$TEAM))),
                      selectInput(inputId = "stats",
                                  label = "Select a Stat:",
-                                 choices = sort(c("REB", "PTS", "AST", "FG3M", 
-                                                  "TO", "STL"))),
+                                 choices = c("REB", "PTS", "AST", "FG3M", 
+                                                  "TO", "STL", "PTS+REB+AST",
+                                                  "PTS+AST", "PTS+REB", "REB+AST",
+                                                  "BLK", "F_PTS")),
                      selectInput(inputId = "pos",
                                  label = "Select player's position:",
                                  choices = c("Point Guard", "Shooting Guard",
@@ -236,12 +116,56 @@ ui <- navbarPage("Predictors",
                  mainPanel(
                      textOutput("player_match"),
                      plotOutput('hist'),
+                     plotOutput('MA'),
                      dataTableOutput('last_10')
                  ))),
+    tabPanel("NFL Player Sim",
+             sidebarLayout(
+                 sidebarPanel(
+                     selectInput(inputId = "nfl_player",
+                                 label = "Select Player:",
+                                 choices = sort(unique(player_stats$player_name))),
+                     selectInput(inputId = "nfl_team",
+                                 label = "Select Team:",
+                                 choices = sort(unique(qb_rushing$Team))),
+                     selectInput(inputId = "nfl_stats",
+                                 label = "Select a Stat:",
+                                 choices = c("QB - passing yards", "QB - rushing yards",
+                                             "QB - pass attempts", "QB - pass completions",
+                                             "QB - passing TDs", "QB - rushing TDs",
+                                             "RB - rushing yards", "RB - rushes",
+                                             "RB - receptions", "RB - rushing TDs",
+                                             "RB - receiving yards", "RB - receiving TDs",
+                                             "WR - receptions", "WR - receiving yards",
+                                             "WR - receiving TDs", "TE - receptions",
+                                             "TE - receiving yards", "TE - receiving TDs")),
+                     textInput(inputId = "nfl_prop",
+                               label = "Player Prop:",
+                               value = "0"),
+                     textInput(inputId = "nfl_over_odds",
+                               label = "Odds for Over:",
+                               value = "0"),
+                     textInput(inputId = "nfl_under_odds",
+                               label = "Odds for Under:",
+                               value = "0")),
+                 mainPanel(
+                     textOutput("nfl_player_match"),
+                     dataTableOutput('nfl_dt'),
+                 ))
+    ),
+    
+    tabPanel("NBA Stats",
+                selectInput(inputId = "team_pos",
+                            label = "Select Position:",
+                            choices = c("Point Guard", "Shooting Guard", "Small Forward",
+                                             "Power Forward", "Centre")),
+             mainPanel(
+                 dataTableOutput("pos_dt")
+             )),
     
     tabPanel("About",
              mainPanel(h1("About the Model"),
-                       "This app contains models to predict outcomes for various sport matches. The accuracies for each model can be seen below:
+                       "This app contains models to predict outcomes for various sport matches. NBA data has been collected from NBA.com, CleaningtheGlass and Hashtag Basketball. The accuracies for each model can be seen below:
                        ",
                        textOutput("nfl_acc"),
                        textOutput("nba_acc"))
@@ -259,9 +183,14 @@ server <- function(input, output) {
         prediction <- sqldf(paste("SELECT avg_estimate from nfl_matchups WHERE home = '",
                     input$home, "' AND visitor = '", input$away, "'", sep = ""))
         prediction <- round(prediction, digits = 3)*100
+        spread_pred <- round(sqldf(paste("SELECT model_spread from nfl_matchups WHERE home = '",
+                                   input$home, "' AND visitor = '", input$away, "'", sep = "")))
+        total_pred <- round(sqldf(paste("SELECT total from nfl_matchups WHERE home = '",
+                                        input$home, "' AND visitor = '", input$away, "'", sep = "")))
         paste("The ", input$home, " have a ", prediction, " percent chance of beating the ", input$away,
               ". With odds of ", odd, ", the implied probability of ", input$home, " winning is ",
-              imp_prob, " percent.", sep = "")
+              imp_prob, " percent. The difference between the home and away team's scores is projected to be: ",
+              spread_pred, ". The projected total score is: ", total_pred, sep = "")
     })
     
     ## NBA
@@ -273,23 +202,13 @@ server <- function(input, output) {
         odd <- as.numeric(input$nba_odds_ff)
         odd2 <- ifelse(odd < 0, -1*odd/(-1*odd + 100), 100/(100+odd))
         imp_prob <- round(odd2*100, digits = 2)
-        if(input$homeb2b == "Yes" & input$roadb2b == "Yes"){
-            prediction <- sqldf(paste("SELECT avg_estimate from nba_matchups_bothb2b WHERE home = '",
+        prediction <- sqldf(paste("SELECT estimate from nba_matchups WHERE home = '",
                                       input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
-        }
-        else if(input$homeb2b == "Yes" & input$roadb2b == "No"){
-            prediction <- sqldf(paste("SELECT avg_estimate from nba_matchups_hb2b WHERE home = '",
-                                      input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
-        }
-        else if(input$homeb2b == "No" & input$roadb2b == "Yes"){
-            prediction <- sqldf(paste("SELECT avg_estimate from nba_matchups_vb2b WHERE home = '",
-                                      input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
-        }
-        else{
-            prediction <- sqldf(paste("SELECT avg_estimate from nba_matchups WHERE home = '",
-                                      input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
-        }
         prediction <- round(prediction, digits = 3)*100
+        spread_pred <- sqldf(paste("SELECT estimate_spread from nba_matchups WHERE home = '",
+                                   input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
+        total_pred <- sqldf(paste("SELECT estimate_total from nba_matchups WHERE home = '",
+                                   input$nba_home, "' AND visitor = '", input$nba_away, "'", sep = ""))
         if(input$nba_home == input$nba_away){
             paste("The ", input$nba_home, " have no chance of beating the ", input$nba_away,
                   ". With odds of ", odd, ", the implied probability of ", input$nba_home, " winning is ",
@@ -297,7 +216,8 @@ server <- function(input, output) {
         }
         else{paste("The ", input$nba_home, " have a ", prediction, " percent chance of beating the ", input$nba_away,
               ". With odds of ", odd, ", the implied probability of ", input$nba_home, " winning is ",
-              imp_prob, " percent.", sep = "")}
+              imp_prob, " percent. The difference between the home and away team's scores is projected to be: ",
+              spread_pred, ". The total score is projected to be: ", total_pred, sep = "")}
     })
     output$nfl_acc <- renderText({
         paste("Currently, the NFL model is about", round(nfl_acc*100),
@@ -306,267 +226,6 @@ server <- function(input, output) {
     output$nba_acc <- renderText({
         paste("The NBA model's accuracy is about", 
               round(nba_acc*100), "percent accurate.")
-    })
-    output$mc_setup <- renderText({
-        home_team <- input$mc_home
-        vis_team <- input$mc_away
-        
-        avg_3pt_rate_off <- mean(home_stats$FG3_rate)/100
-        avg_2pt_rate_off <- mean(home_stats$FG2_rate)/100
-        avg_2pt_pct_off <- mean(home_stats$FG2_PCT)/100
-        avg_3pt_pct_off <- mean(home_stats$FG3_PCT)
-        avg_ft_pct_off <- mean(home_stats$FT_PCT)
-        
-        ### home ------------
-        # get offence numbers
-        home_3pt_rate_off <- sqldf(paste("SELECT FG3_rate from home_stats where TEAM_NAME is '", 
-                                         home_team, "'", sep = ""))[1, 1]/100
-        home_2pt_rate_off <- sqldf(paste("SELECT FG2_rate from home_stats where TEAM_NAME is '", 
-                                         home_team, "'", sep = ""))[1, 1]/100
-        home_2pt_pct_off <- sqldf(paste("SELECT FG2_PCT from home_stats where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1, 1]/100
-        home_3pt_pct_off <- sqldf(paste("SELECT FG3_PCT from home_stats where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1, 1]
-        home_ft_pct_off <- sqldf(paste("SELECT FT_PCT from home_stats where TEAM_NAME is '", 
-                                       home_team, "'", sep = ""))[1, 1]
-        
-        ### rebound, tov, free throw numbers
-        
-        home_orb_pct_off <- sqldf(paste("SELECT OREB_PCT from advanced_data_home where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1,1]
-        home_orb_pct_def <- sqldf(paste("SELECT OPP_OREB_PCT from advanced_data_home where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1,1]
-        
-        home_ft_rate_off <- sqldf(paste("SELECT FTA_RATE from advanced_data_home where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1,1]
-        home_ft_rate_def <- sqldf(paste("SELECT OPP_FTA_RATE from advanced_data_home where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1,1]
-        
-        home_tov_pct_off <- sqldf(paste("SELECT TM_TOV_PCT from advanced_data_home where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1,1]
-        home_tov_pct_def <- sqldf(paste("SELECT OPP_TOV_PCT from advanced_data_home where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1,1]
-        
-        ## get defense numbers
-        home_3pt_rate_def <- sqldf(paste("SELECT OPP_FG3_rate from home_stats where TEAM_NAME is '", 
-                                         home_team, "'", sep = ""))[1, 1]/100
-        home_2pt_rate_def <- sqldf(paste("SELECT OPP_FG2_rate from home_stats where TEAM_NAME is '", 
-                                         home_team, "'", sep = ""))[1, 1]/100
-        home_2pt_pct_def <- sqldf(paste("SELECT OPP_FG2_PCT from home_stats where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1, 1]/100
-        home_3pt_pct_def <- sqldf(paste("SELECT OPP_FG3_PCT from home_stats where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1, 1]
-        home_ft_pct_def <- sqldf(paste("SELECT OPP_FT_PCT from home_stats where TEAM_NAME is '", 
-                                       home_team, "'", sep = ""))[1, 1]
-        
-        ### visitor -------
-        # get offence numbers
-        
-        vis_3pt_rate_off <- sqldf(paste("SELECT FG3_rate from visitor_stats where TEAM_NAME is '", 
-                                        vis_team, "'", sep = ""))[1, 1]/100
-        vis_2pt_rate_off <- sqldf(paste("SELECT FG2_rate from visitor_stats where TEAM_NAME is '", 
-                                        vis_team, "'", sep = ""))[1, 1]/100
-        vis_2pt_pct_off <- sqldf(paste("SELECT FG2_PCT from visitor_stats where TEAM_NAME is '", 
-                                       vis_team, "'", sep = ""))[1, 1]/100
-        vis_3pt_pct_off <- sqldf(paste("SELECT FG3_PCT from visitor_stats where TEAM_NAME is '", 
-                                       vis_team, "'", sep = ""))[1, 1]
-        vis_ft_pct_off <- sqldf(paste("SELECT FT_PCT from visitor_stats where TEAM_NAME is '", 
-                                      vis_team, "'", sep = ""))[1, 1]
-        
-        ### rebound numbers
-        vis_orb_rate_off <- sqldf(paste("SELECT OREB_PCT from advanced_data_visitor where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1,1]
-        vis_orb_rate_def <- sqldf(paste("SELECT OPP_OREB_PCT from advanced_data_visitor where TEAM_NAME is '", 
-                                        home_team, "'", sep = ""))[1,1]
-        
-        vis_ft_rate_off <- sqldf(paste("SELECT FTA_RATE from advanced_data_visitor where TEAM_NAME is '", 
-                                       home_team, "'", sep = ""))[1,1]
-        vis_ft_rate_def <- sqldf(paste("SELECT OPP_FTA_RATE from advanced_data_visitor where TEAM_NAME is '", 
-                                       home_team, "'", sep = ""))[1,1]
-        
-        vis_tov_pct_off <- sqldf(paste("SELECT TM_TOV_PCT from advanced_data_visitor where TEAM_NAME is '", 
-                                       home_team, "'", sep = ""))[1,1]
-        vis_tov_pct_def <- sqldf(paste("SELECT OPP_TOV_PCT from advanced_data_visitor where TEAM_NAME is '", 
-                                       home_team, "'", sep = ""))[1,1]
-        
-        
-        ## get defense numbers
-        vis_3pt_rate_def <- sqldf(paste("SELECT OPP_FG3_rate from visitor_stats where TEAM_NAME is '", 
-                                        vis_team, "'", sep = ""))[1, 1]/100
-        vis_2pt_rate_def <- sqldf(paste("SELECT OPP_FG2_rate from visitor_stats where TEAM_NAME is '", 
-                                        vis_team, "'", sep = ""))[1, 1]/100
-        vis_2pt_pct_def <- sqldf(paste("SELECT OPP_FG2_PCT from visitor_stats where TEAM_NAME is '", 
-                                       vis_team, "'", sep = ""))[1, 1]/100
-        vis_3pt_pct_def <- sqldf(paste("SELECT OPP_FG3_PCT from visitor_stats where TEAM_NAME is '", 
-                                       vis_team, "'", sep = ""))[1, 1]
-        vis_ft_pct_def <- sqldf(paste("SELECT OPP_FT_PCT from visitor_stats where TEAM_NAME is '", 
-                                      vis_team, "'", sep = ""))[1, 1]
-        
-        
-        ## get home difference vs average --------
-        
-        #offence
-        home_3pt_rate_off.dif <- home_3pt_rate_off - avg_3pt_rate_off
-        home_2pt_rate_off.dif <- home_2pt_rate_off - avg_2pt_rate_off
-        home_2pt_pct_off.dif <- home_2pt_pct_off - avg_2pt_pct_off
-        home_3pt_pct_off.dif <- home_3pt_pct_off - avg_3pt_pct_off
-        home_ft_pct_off.dif <- home_ft_pct_off - avg_ft_pct_off
-        
-        #defence
-        home_3pt_rate_def.dif <- home_3pt_rate_def - avg_3pt_rate_off
-        home_2pt_rate_def.dif <- home_2pt_rate_def - avg_2pt_rate_off
-        home_2pt_pct_def.dif <- home_2pt_pct_def - avg_2pt_pct_off
-        home_3pt_pct_def.dif <- home_3pt_pct_def - avg_3pt_pct_off
-        home_ft_pct_def.dif <- home_ft_pct_def - avg_ft_pct_off
-        
-        #reb
-        home_orb_pct_off.dif <- sqldf(paste("SELECT OREB_PCT from advanced_data_home where TEAM_NAME is '", 
-                                            home_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT OREB_PCT from advanced_data_home where TEAM_NAME is 'average'")[1,1]
-        home_orb_pct_def.dif <- sqldf(paste("SELECT OPP_OREB_PCT from advanced_data_home where TEAM_NAME is '", 
-                                            home_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT OPP_OREB_PCT from advanced_data_home where TEAM_NAME is 'average'")[1,1]
-        
-        #ft
-        home_ft_rate_off.dif <- sqldf(paste("SELECT FTA_RATE from advanced_data_home where TEAM_NAME is '", 
-                                            home_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT FTA_RATE from advanced_data_home where TEAM_NAME is 'average'")[1,1]
-        home_ft_rate_def.dif <- sqldf(paste("SELECT OPP_FTA_RATE from advanced_data_home where TEAM_NAME is '", 
-                                            home_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT OPP_FTA_RATE from advanced_data_home where TEAM_NAME is 'average'")[1,1]
-        
-        #tov
-        home_tov_pct_off.dif <- sqldf(paste("SELECT TM_TOV_PCT from advanced_data_home where TEAM_NAME is '", 
-                                            home_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT TM_TOV_PCT from advanced_data_home where TEAM_NAME is 'average'")[1,1]
-        home_tov_pct_def.dif <- sqldf(paste("SELECT OPP_TOV_PCT from advanced_data_home where TEAM_NAME is '", 
-                                            home_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT OPP_TOV_PCT from advanced_data_home where TEAM_NAME is 'average'")[1,1]
-        
-        ## get visitor difference vs average ------
-        
-        #offence
-        vis_3pt_rate_off.dif <- vis_3pt_rate_off - avg_3pt_rate_off
-        vis_2pt_rate_off.dif <- vis_2pt_rate_off - avg_2pt_rate_off
-        vis_2pt_pct_off.dif <- vis_2pt_pct_off - avg_2pt_pct_off
-        vis_3pt_pct_off.dif <- vis_3pt_pct_off - avg_3pt_pct_off
-        vis_ft_pct_off.dif <- vis_ft_pct_off - avg_ft_pct_off
-        
-        #defence
-        vis_3pt_rate_def.dif <- vis_3pt_rate_def - avg_3pt_rate_off
-        vis_2pt_rate_def.dif <- vis_2pt_rate_def - avg_2pt_rate_off
-        vis_2pt_pct_def.dif <- vis_2pt_pct_def - avg_2pt_pct_off
-        vis_3pt_pct_def.dif <- vis_3pt_pct_def - avg_3pt_pct_off
-        vis_ft_pct_def.dif <- vis_ft_pct_def - avg_ft_pct_off
-        
-        #reb
-        vis_orb_pct_off.dif <- sqldf(paste("SELECT OREB_PCT from advanced_data_visitor where TEAM_NAME is '", 
-                                           vis_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT OREB_PCT from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        vis_orb_pct_def.dif <- sqldf(paste("SELECT OPP_OREB_PCT from advanced_data_visitor where TEAM_NAME is '", 
-                                           vis_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT OPP_OREB_PCT from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        
-        #ft
-        vis_ft_rate_off.dif <- sqldf(paste("SELECT FTA_RATE from advanced_data_visitor where TEAM_NAME is '", 
-                                           vis_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT FTA_RATE from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        vis_ft_rate_def.dif <- sqldf(paste("SELECT OPP_FTA_RATE from advanced_data_visitor where TEAM_NAME is '", 
-                                           vis_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT OPP_FTA_RATE from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        
-        #tov
-        vis_tov_pct_off.dif <- sqldf(paste("SELECT TM_TOV_PCT from advanced_data_visitor where TEAM_NAME is '", 
-                                           vis_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT TM_TOV_PCT from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        vis_tov_pct_def.dif <- sqldf(paste("SELECT OPP_TOV_PCT from advanced_data_visitor where TEAM_NAME is '", 
-                                           vis_team, "'", sep = ""))[1,1] - 
-            sqldf("SELECT OPP_TOV_PCT from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        
-        
-        ### get difference sums
-        
-        #home off
-        diff_sum3pt_rate <- home_3pt_rate_off.dif + vis_3pt_rate_def.dif
-        diff_sum2pt_rate<- home_2pt_rate_off.dif + vis_2pt_rate_def.dif
-        diff_sum2pt_pct <- home_2pt_pct_off.dif + vis_2pt_pct_def.dif
-        diff_sum3pt_pct <- home_3pt_pct_off.dif + vis_3pt_pct_def.dif
-        diff_sumft_pct <- home_ft_pct_off.dif + vis_ft_pct_def.dif
-        diff_sumorb_pct <- home_orb_pct_off.dif + vis_orb_pct_def.dif
-        diff_sumft_rate <- home_ft_rate_off.dif + vis_ft_rate_def.dif
-        diff_sumtov_rate <- home_tov_pct_off.dif + vis_tov_pct_def.dif
-        
-        ### get adjusted values
-        
-        adj_3pt_rate <- diff_sum3pt_rate + avg_3pt_rate_off
-        adj_2pt_rate <- diff_sum2pt_rate + avg_2pt_rate_off
-        adj_2pt_pct <- diff_sum2pt_pct + avg_2pt_pct_off
-        adj_3pt_pct <- diff_sum3pt_pct + avg_3pt_pct_off
-        adj_ft_pct <- diff_sumft_pct + avg_ft_pct_off
-        adj_orb_pct <- diff_sumorb_pct + sqldf("SELECT OPP_OREB_PCT from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        adj_ft_rate <- diff_sumft_rate + sqldf("SELECT OPP_FTA_RATE from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        adj_tov_rate <- diff_sumtov_rate + sqldf("SELECT OPP_TOV_PCT from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        
-        fga_pct <- 1 - adj_ft_rate - adj_tov_rate
-        prob_2pt <- adj_2pt_rate * fga_pct
-        prob_3pt <- adj_3pt_rate * fga_pct
-        
-        
-        probs <- c(adj_tov_rate, prob_2pt, prob_3pt, adj_ft_rate)
-        p_2pt <- adj_2pt_pct
-        p_3pt <- adj_3pt_pct
-        p_reb <- adj_orb_pct
-        p_ft <- adj_ft_pct
-        
-        pace <- sqldf(paste("SELECT last_3 from possessions where Team_name is '",
-                            home_team, "'", sep = ""))[1,1]
-        #home score
-        home <- round(simulate_score(probs, p_2pt, p_3pt, 
-                                           p_reb, p_ft, pace, 10000), digits = 0)
-        
-        diff_sum3pt_rate <- vis_3pt_rate_off.dif + home_3pt_rate_def.dif
-        diff_sum2pt_rate<- vis_2pt_rate_off.dif + home_2pt_rate_def.dif
-        diff_sum2pt_pct <- vis_2pt_pct_off.dif + home_2pt_pct_def.dif
-        diff_sum3pt_pct <- vis_3pt_pct_off.dif + home_3pt_pct_def.dif
-        diff_sumft_pct <- vis_ft_pct_off.dif + home_ft_pct_def.dif
-        diff_sumorb_pct <- vis_orb_pct_off.dif + home_orb_pct_def.dif
-        diff_sumft_rate <- vis_ft_rate_off.dif + home_ft_rate_def.dif
-        diff_sumtov_rate <- vis_tov_pct_off.dif + home_tov_pct_def.dif
-        
-        adj_3pt_rate <- diff_sum3pt_rate + avg_3pt_rate_off
-        adj_2pt_rate <- diff_sum2pt_rate + avg_2pt_rate_off
-        adj_2pt_pct <- diff_sum2pt_pct + avg_2pt_pct_off
-        adj_3pt_pct <- diff_sum3pt_pct + avg_3pt_pct_off
-        adj_ft_pct <- diff_sumft_pct + avg_ft_pct_off
-        adj_orb_pct <- diff_sumorb_pct + sqldf("SELECT OPP_OREB_PCT from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        adj_ft_rate <- diff_sumft_rate + sqldf("SELECT OPP_FTA_RATE from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        adj_tov_rate <- diff_sumtov_rate + sqldf("SELECT OPP_TOV_PCT from advanced_data_visitor where TEAM_NAME is 'average'")[1,1]
-        
-        fga_pct <- 1 - adj_ft_rate - adj_tov_rate
-        prob_2pt <- adj_2pt_rate * fga_pct
-        prob_3pt <- adj_3pt_rate * fga_pct
-        
-        
-        probs <- c(adj_tov_rate, prob_2pt, prob_3pt, adj_ft_rate)
-        p_2pt <- adj_2pt_pct
-        p_3pt <- adj_3pt_pct
-        p_reb <- adj_orb_pct
-        p_ft <- adj_ft_pct
-        
-        pace <- sqldf(paste("SELECT last_3 from possessions where Team_name is '",
-                            vis_team, "'", sep = ""))[1,1]
-        #visitor score
-        visitor <- round(simulate_score(probs, p_2pt, p_3pt,
-                                              p_reb, p_ft, sqrt(105*pace), 10000), digits = 0)
-        
-        print(paste("Based on 10000 simulations, the predicted score is ", home_team, 
-                    ": ", home, ", ", vis_team, ": ", visitor, sep = ""))
-    })
-    output$mc_breakdown <- renderDataTable({
-        model_stats %>% 
-            select("team" = `home`,
-                   home_accuracy, visitor_accuracy, 
-                   accuracy)
     })
     output$player_match <- renderText({
         if(input$pos == "Point Guard"){
@@ -587,184 +246,360 @@ server <- function(input, output) {
         x <- input$stats
         if(x == "AST"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(AST, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(AST, na.rm = T),
                           sd1 = sd(AST, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(AST, na.rm = T),
+                summarise(avg1 = median(AST, na.rm = T),
                           sd1 = sd(AST, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(AST, na.rm = T),
+                summarise(avg1 = median(AST, na.rm = T),
                           sd1 = sd(AST, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
         else if(x == "REB"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(REB, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(REB, na.rm = T),
                           sd1 = sd(REB, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(REB, na.rm = T),
+                summarise(avg1 = median(REB, na.rm = T),
                           sd1 = sd(REB, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(REB, na.rm = T),
+                summarise(avg1 = median(REB, na.rm = T),
                           sd1 = sd(REB, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "BLK"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(BLK, na.rm = T),
+                          sd1 = sd(BLK, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(BLK, na.rm = T),
+                          sd1 = sd(BLK, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(BLK, na.rm = T),
+                          sd1 = sd(BLK, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
         
         else if(x == "FG3M"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(FG3M, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(FG3M, na.rm = T),
                           sd1 = sd(FG3M, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(FG3M, na.rm = T),
+                summarise(avg1 = median(FG3M, na.rm = T),
                           sd1 = sd(FG3M, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(FG3M, na.rm = T),
+                summarise(avg1 = median(FG3M, na.rm = T),
                           sd1 = sd(FG3M, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
         
         else if(x == "TO"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(TO, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(TO, na.rm = T),
                           sd1 = sd(TO, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(TO, na.rm = T),
+                summarise(avg1 = median(TO, na.rm = T),
                           sd1 = sd(TO, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(TO, na.rm = T),
+                summarise(avg1 = median(TO, na.rm = T),
                           sd1 = sd(TO, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
         
         else if(x == "STL"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(STL, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(STL, na.rm = T),
                           sd1 = sd(STL, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(STL, na.rm = T),
+                summarise(avg1 = median(STL, na.rm = T),
                           sd1 = sd(STL, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(STL, na.rm = T),
+                summarise(avg1 = median(STL, na.rm = T),
                           sd1 = sd(STL, na.rm = T)) %>%
                 filter(avg1 != 0)
+            
+            
         }
-
+        
+        else if(x == "PTS+REB+AST"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(PTS_REB_AST, na.rm = T),
+                          sd1 = sd(PTS_REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(PTS_REB_AST, na.rm = T),
+                          sd1 = sd(PTS_REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(PTS_REB_AST, na.rm = T),
+                          sd1 = sd(PTS_REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
+        }
+        
+        else if(x == "PTS+REB"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(PTS_REB, na.rm = T),
+                          sd1 = sd(PTS_REB, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(PTS_REB, na.rm = T),
+                          sd1 = sd(PTS_REB, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(PTS_REB, na.rm = T),
+                          sd1 = sd(PTS_REB, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
+        }
+        
+        else if(x == "PTS+AST"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(PTS_AST, na.rm = T),
+                          sd1 = sd(PTS_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(PTS_AST, na.rm = T),
+                          sd1 = sd(PTS_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(PTS_AST, na.rm = T),
+                          sd1 = sd(PTS_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
+        }
+        
+        else if(x == "REB+AST"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(REB_AST, na.rm = T),
+                          sd1 = sd(REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(REB_AST, na.rm = T),
+                          sd1 = sd(REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(REB_AST, na.rm = T),
+                          sd1 = sd(REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
+        }
+        
+        else if(x == "F_PTS"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(F_PTS, na.rm = T),
+                          sd1 = sd(F_PTS, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(F_PTS, na.rm = T),
+                          sd1 = sd(F_PTS, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(F_PTS, na.rm = T),
+                          sd1 = sd(F_PTS, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
+        }
+        
         else{
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(PTS, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(PTS, na.rm = T),
                           sd1 = sd(PTS, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(PTS, na.rm = T),
+                summarise(avg1 = median(PTS, na.rm = T),
                           sd1 = sd(PTS, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(PTS, na.rm = T),
+                summarise(avg1 = median(PTS, na.rm = T),
                           sd1 = sd(PTS, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
 
-        player.df <- avgs %>%
-            filter(PLAYER_NAME == input$player)
-        player_average = as.numeric(player.df[1,2])
-        player_sd = as.numeric(player.df[1,3])
+        player_average = as.numeric(avgs[1,1])
+        player_sd = as.numeric(avgs[1,2])
         
-        player.df1 <- avgs1 %>%
-            filter(PLAYER_NAME == input$player)
-        player_average1 = as.numeric(player.df[1,2])
-        player_sd1 = as.numeric(player.df[1,3])
+
+        player_average1 = as.numeric(avgs1[1,1])
+        player_sd1 = as.numeric(avgs1[1,2])
         
-        player.df2 <- avgs2 %>%
-            filter(PLAYER_NAME == input$player)
-        player_average2 = as.numeric(player.df[1,2])
-        player_sd2 = as.numeric(player.df[1,3])
+
+        player_average2 = as.numeric(avgs2[1,1])
+        player_sd2 = as.numeric(avgs2[1,2])
 
         
         if(x == "AST"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_AST))
+                summarise(avg.stat = median(OPP_AST))
             stat_col <- team_stats %>% select(OPP_AST)
         }
         else if(x == "REB"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_REB))
+                summarise(avg.stat = median(OPP_REB))
             stat_col <- team_stats %>% select(OPP_REB)
         }
         
         else if(x == "FG3M"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_FG3M))
+                summarise(avg.stat = median(OPP_FG3M))
             stat_col <- team_stats %>% select(OPP_FG3M)
         }
         
         else if(x == "TO"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_TO))
+                summarise(avg.stat = median(OPP_TO))
             formatted = "TOV"
             stat_col <- team_stats %>% select(OPP_TO)
+        }
+        
+        else if(x == "BLK"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(OPP_BLK))
+            stat_col <- team_stats %>% select(OPP_BLK)
         }
         
         else if(x == "STL"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_STL))
+                summarise(avg.stat = median(OPP_STL))
             stat_col <- team_stats %>% select(OPP_STL)
+        }
+        
+        else if(x == "PTS+REB+AST"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(PTS_REB_AST))
+            stat_col <- team_stats %>% select(PTS_REB_AST)
+        }
+        
+        else if(x == "PTS+AST"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(PTS_AST))
+            stat_col <- team_stats %>% select(PTS_AST)
+        }
+        
+        else if(x == "PTS+REB"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(PTS_REB))
+            stat_col <- team_stats %>% select(PTS_REB)
+        }
+        
+        else if(x == "REB+AST"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(REB_AST))
+            stat_col <- team_stats %>% select(REB_AST)
+        }
+        
+        else if(x == "F_PTS"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(F_PTS))
+            stat_col <- team_stats %>% select(F_PTS)
         }
         
         else{
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_PTS))
+                summarise(avg.stat = median(OPP_PTS))
             stat_col <- team_stats %>% select(OPP_PTS)
         }
         x <- mean(scale(teams$avg.stat, center = 0))
@@ -786,7 +621,7 @@ server <- function(input, output) {
             simmed3[i] <- qnorm(runif(1), mean = player_average2, sd = player_sd2) +
                 qnorm(runif(1), mean = player_average, sd = player_sd)*team_adj
         }
-        combined <- 0.6*simmed + 0.3*simmed2 + .1*simmed3
+        combined <-  0.3*simmed + 0.6*simmed2 + 0.1*simmed3
         num = as.numeric(input$prop)
         o_odd <- as.numeric(input$over_odds)
         o_odd2 <- ifelse(o_odd < 0, -1*o_odd/(-1*o_odd + 100), 100/(100+o_odd))
@@ -794,7 +629,9 @@ server <- function(input, output) {
         u_odd2 <- ifelse(u_odd < 0, -1*u_odd/(-1*u_odd + 100), 100/(100+u_odd))
         book_odds <- round(o_odd2/(o_odd2 + u_odd2), 4)
         print(paste("Estimate:", round(mean(combined), digits = 1), "| Prob (%):", (sum(combined > num))/10000,
-              "| Sportsbook's Prob for Over (%):", book_odds*100))
+              "| Sportsbook's Prob for Over (%):", book_odds*100, "| Last 10 Average:", 
+              player_average2, "| Last 10 SD:", round(player_sd2, digits = 3), "| Last 7 Average:", 
+              round(player_average1, digits = 1), "| Last 7 SD:", round(player_sd1, digits = 3)))
     })
     output$hist <- renderPlot({
         if(input$pos == "Point Guard"){
@@ -815,183 +652,357 @@ server <- function(input, output) {
         x <- input$stats
         if(x == "AST"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(AST, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(AST, na.rm = T),
                           sd1 = sd(AST, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(AST, na.rm = T),
+                summarise(avg1 = median(AST, na.rm = T),
                           sd1 = sd(AST, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(AST, na.rm = T),
+                summarise(avg1 = median(AST, na.rm = T),
                           sd1 = sd(AST, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
         else if(x == "REB"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(REB, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(REB, na.rm = T),
                           sd1 = sd(REB, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(REB, na.rm = T),
+                summarise(avg1 = median(REB, na.rm = T),
                           sd1 = sd(REB, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(REB, na.rm = T),
+                summarise(avg1 = median(REB, na.rm = T),
                           sd1 = sd(REB, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "BLK"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(BLK, na.rm = T),
+                          sd1 = sd(BLK, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(BLK, na.rm = T),
+                          sd1 = sd(BLK, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(BLK, na.rm = T),
+                          sd1 = sd(BLK, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
         
         else if(x == "FG3M"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(FG3M, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(FG3M, na.rm = T),
                           sd1 = sd(FG3M, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(FG3M, na.rm = T),
+                summarise(avg1 = median(FG3M, na.rm = T),
                           sd1 = sd(FG3M, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(FG3M, na.rm = T),
+                summarise(avg1 = median(FG3M, na.rm = T),
                           sd1 = sd(FG3M, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
         
         else if(x == "TO"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(TO, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(TO, na.rm = T),
                           sd1 = sd(TO, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(TO, na.rm = T),
+                summarise(avg1 = median(TO, na.rm = T),
                           sd1 = sd(TO, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(TO, na.rm = T),
+                summarise(avg1 = median(TO, na.rm = T),
                           sd1 = sd(TO, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
         
         else if(x == "STL"){
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(STL, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(STL, na.rm = T),
                           sd1 = sd(STL, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(STL, na.rm = T),
+                summarise(avg1 = median(STL, na.rm = T),
                           sd1 = sd(STL, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(STL, na.rm = T),
+                summarise(avg1 = median(STL, na.rm = T),
                           sd1 = sd(STL, na.rm = T)) %>%
                 filter(avg1 != 0)
+        }
+        
+        else if(x == "PTS+REB+AST"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(PTS_REB_AST, na.rm = T),
+                          sd1 = sd(PTS_REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(PTS_REB_AST, na.rm = T),
+                          sd1 = sd(PTS_REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(PTS_REB_AST, na.rm = T),
+                          sd1 = sd(PTS_REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
+        }
+        
+        else if(x == "PTS+REB"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(PTS_REB, na.rm = T),
+                          sd1 = sd(PTS_REB, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(PTS_REB, na.rm = T),
+                          sd1 = sd(PTS_REB, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(PTS_REB, na.rm = T),
+                          sd1 = sd(PTS_REB, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
+        }
+        
+        else if(x == "PTS+AST"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(PTS_AST, na.rm = T),
+                          sd1 = sd(PTS_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(PTS_AST, na.rm = T),
+                          sd1 = sd(PTS_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(PTS_AST, na.rm = T),
+                          sd1 = sd(PTS_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
+        }
+        
+        else if(x == "REB+AST"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(REB_AST, na.rm = T),
+                          sd1 = sd(REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(REB_AST, na.rm = T),
+                          sd1 = sd(REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(REB_AST, na.rm = T),
+                          sd1 = sd(REB_AST, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
+        }
+        
+        else if(x == "F_PTS"){
+            avgs <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(F_PTS, na.rm = T),
+                          sd1 = sd(F_PTS, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:7) %>% 
+                summarise(avg1 = median(F_PTS, na.rm = T),
+                          sd1 = sd(F_PTS, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- gamelogs %>%
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:10) %>% 
+                summarise(avg1 = median(F_PTS, na.rm = T),
+                          sd1 = sd(F_PTS, na.rm = T)) %>%
+                filter(avg1 != 0)
+            
+            
         }
         
         else{
             avgs <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
-                slice(1:4) %>% 
-                summarise(avg1 = mean(PTS, na.rm = T),
+                filter(PLAYER_NAME == input$player) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(PTS, na.rm = T),
                           sd1 = sd(PTS, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs1 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:7) %>% 
-                summarise(avg1 = mean(PTS, na.rm = T),
+                summarise(avg1 = median(PTS, na.rm = T),
                           sd1 = sd(PTS, na.rm = T)) %>%
                 filter(avg1 != 0)
             avgs2 <- gamelogs %>%
-                group_by(PLAYER_NAME) %>%
+                filter(PLAYER_NAME == input$player) %>%
                 slice(1:10) %>% 
-                summarise(avg1 = mean(PTS, na.rm = T),
+                summarise(avg1 = median(PTS, na.rm = T),
                           sd1 = sd(PTS, na.rm = T)) %>%
                 filter(avg1 != 0)
         }
         
-        player.df <- avgs %>%
-            filter(PLAYER_NAME == input$player)
-        player_average = as.numeric(player.df[1,2])
-        player_sd = as.numeric(player.df[1,3])
+
+        player_average = as.numeric(avgs[1,1])
+        player_sd = as.numeric(avgs[1,2])
         
-        player.df1 <- avgs1 %>%
-            filter(PLAYER_NAME == input$player)
-        player_average1 = as.numeric(player.df[1,2])
-        player_sd1 = as.numeric(player.df[1,3])
+        player_average1 = as.numeric(avgs1[1,1])
+        player_sd1 = as.numeric(avgs1[1,2])
         
-        player.df2 <- avgs2 %>%
-            filter(PLAYER_NAME == input$player)
-        player_average2 = as.numeric(player.df[1,2])
-        player_sd2 = as.numeric(player.df[1,3])
+
+        player_average2 = as.numeric(avgs2[1,1])
+        player_sd2 = as.numeric(avgs2[1,2])
         
         
         if(x == "AST"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_AST))
+                summarise(avg.stat = median(OPP_AST))
             stat_col <- team_stats %>% select(OPP_AST)
         }
         else if(x == "REB"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_REB))
+                summarise(avg.stat = median(OPP_REB))
             stat_col <- team_stats %>% select(OPP_REB)
         }
         
         else if(x == "FG3M"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_FG3M))
+                summarise(avg.stat = median(OPP_FG3M))
             stat_col <- team_stats %>% select(OPP_FG3M)
         }
         
         else if(x == "STL"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_STL))
+                summarise(avg.stat = median(OPP_STL))
             stat_col <- team_stats %>% select(OPP_STL)
         }
         
         else if(x == "TO"){
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_TO))
+                summarise(avg.stat = median(OPP_TO))
             stat_col <- team_stats %>% select(OPP_TO)
+        }
+        
+        else if(x == "BLK"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(OPP_BLK))
+            stat_col <- team_stats %>% select(OPP_BLK)
+        }
+
+        else if(x == "PTS+REB+AST"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(PTS_REB_AST))
+            stat_col <- team_stats %>% select(PTS_REB_AST)
+        }
+        
+        else if(x == "PTS+AST"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(PTS_AST))
+            stat_col <- team_stats %>% select(PTS_AST)
+        }
+        
+        else if(x == "PTS+REB"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(PTS_REB))
+            stat_col <- team_stats %>% select(PTS_REB)
+        }
+        
+        else if(x == "REB+AST"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(REB_AST))
+            stat_col <- team_stats %>% select(REB_AST)
+        }
+        
+        else if(x == "F_PTS"){
+            teams <- team_stats %>%
+                group_by(TEAM) %>%
+                summarise(avg.stat = median(F_PTS))
+            stat_col <- team_stats %>% select(F_PTS)
         }
         
         else{
             teams <- team_stats %>%
                 group_by(TEAM) %>%
-                summarise(avg.stat = mean(OPP_PTS))
+                summarise(avg.stat = median(OPP_PTS))
             stat_col <- team_stats %>% select(OPP_PTS)
         }
         teams <- teams %>%
@@ -1008,18 +1019,19 @@ server <- function(input, output) {
             simmed[i] <- qnorm(runif(1), mean = player_average, sd = player_sd) +
                 qnorm(runif(1), mean = player_average, sd = player_sd)*team_adj
             simmed2[i] <- qnorm(runif(1), mean = player_average1, sd = player_sd1) +
-                qnorm(runif(1), mean = player_average, sd = player_sd)*team_adj
+                qnorm(runif(1), mean = player_average1, sd = player_sd1)*team_adj
             simmed3[i] <- qnorm(runif(1), mean = player_average2, sd = player_sd2) +
-                qnorm(runif(1), mean = player_average, sd = player_sd)*team_adj
+                qnorm(runif(1), mean = player_average2, sd = player_sd2)*team_adj
         }
-        combined <- 0.6*simmed + 0.3*simmed2 + .1*simmed3
+        combined <- 0.3*simmed + 0.6*simmed2 + 0.1*simmed3
         hist(combined)
         abline(v = input$prop, col = "green")
     })
     output$last_10 <- renderDataTable({
         logs <- gamelogs %>% 
             filter(PLAYER_NAME == input$player) %>% 
-            select(PTS, REB, AST, FG3M, FG3A, TO, STL) %>% 
+            select(PTS, REB, AST, FG3M, FG3A, TO, STL, PTS_REB_AST,
+                   PTS_REB, PTS_AST, REB_AST, BLK, F_PTS) %>% 
             slice(1:10)
         prop = as.numeric(input$prop)
         stat = input$stats
@@ -1039,13 +1051,861 @@ server <- function(input, output) {
             DT::datatable(logs) %>% formatStyle("TO",
             backgroundColor = styleInterval(prop, c('red','lime')))
         }
+        else if(stat == "BLK"){
+            DT::datatable(logs) %>% formatStyle("BLK",
+            backgroundColor = styleInterval(prop, c('red','lime')))
+        }
         else if(stat == "STL"){
             DT::datatable(logs) %>% formatStyle("STL",
             backgroundColor = styleInterval(prop, c('red','lime')))
         }
+        else if(stat == "PTS+REB+AST"){
+            DT::datatable(logs) %>% formatStyle("PTS_REB_AST",
+            backgroundColor = styleInterval(prop, c('red','lime')))
+        }
+        else if(stat == "PTS+REB"){
+            DT::datatable(logs) %>% formatStyle("PTS_REB",
+            backgroundColor = styleInterval(prop, c('red','lime')))
+        }
+        else if(stat == "PTS+AST"){
+            DT::datatable(logs) %>% formatStyle("PTS_AST",
+            backgroundColor = styleInterval(prop, c('red','lime')))
+        }
+        else if(stat == "REB+AST"){
+            DT::datatable(logs) %>% formatStyle("REB_AST",
+            backgroundColor = styleInterval(prop, c('red','lime')))
+        }
+        else if(stat == "F_PTS"){
+            DT::datatable(logs) %>% formatStyle("F_PTS",
+                                                backgroundColor = styleInterval(prop, c('red','lime')))
+        }
         else{
             DT::datatable(logs) %>% formatStyle("PTS",
             backgroundColor = styleInterval(prop, c('red','lime')))
+        }
+    })
+    output$MA <- renderPlot({
+        if(input$stats == "PTS"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(PTS), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(PTS), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(PTS), k = 7, fill = NA),
+                       season_avg = cummean(rev(PTS)),
+                       game_num = seq_along(PTS)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average") +
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "REB"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(REB), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(REB), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(REB), k = 7, fill = NA),
+                       season_avg = cummean(rev(REB)),
+                       game_num = seq_along(REB)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "AST"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(AST), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(AST), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(AST), k = 7, fill = NA),
+                       season_avg = cummean(rev(AST)),
+                       game_num = seq_along(AST)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "BLK"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(BLK), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(BLK), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(BLK), k = 7, fill = NA),
+                       season_avg = cummean(rev(BLK)),
+                       game_num = seq_along(BLK)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "FG3M"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(FG3M), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(FG3M), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(FG3M), k = 7, fill = NA),
+                       season_avg = cummean(rev(FG3M)),
+                       game_num = seq_along(FG3M)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "STL"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(STL), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(STL), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(STL), k = 7, fill = NA),
+                       season_avg = cummean(rev(STL)),
+                       game_num = seq_along(STL)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "TO"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(TO), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(TO), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(TO), k = 7, fill = NA),
+                       season_avg = cummean(rev(TO)),
+                       game_num = seq_along(TO)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "PTS+REB+AST"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(PTS_REB_AST), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(PTS_REB_AST), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(PTS_REB_AST), k = 7, fill = NA),
+                       season_avg = cummean(rev(PTS_REB_AST)),
+                       game_num = seq_along(PTS_REB_AST)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "PTS+REB"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(PTS_REB), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(PTS_REB), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(PTS_REB), k = 7, fill = NA),
+                       season_avg = cummean(rev(PTS_REB)),
+                       game_num = seq_along(PTS_REB)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "PTS+AST"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(PTS_AST), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(PTS_AST), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(PTS_AST), k = 7, fill = NA),
+                       season_avg = cummean(rev(PTS_AST)),
+                       game_num = seq_along(PTS_AST)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        else if(input$stats == "REB+AST"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(REB_AST), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(REB_AST), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(REB_AST), k = 7, fill = NA),
+                       season_avg = cummean(rev(REB_AST)),
+                       game_num = seq_along(REB_AST)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+        
+        else if(input$stats == "F_PTS"){
+            prop <- as.numeric(input$prop)
+            dataset <- gamelogs %>% filter(PLAYER_NAME == input$player)
+            dataset %>% 
+                mutate(three_game = zoo::rollmean(rev(F_PTS), k = 3, fill = NA),
+                       five_game = zoo::rollmean(rev(F_PTS), k = 5, fill = NA),
+                       seven_game = zoo::rollmean(rev(F_PTS), k = 7, fill = NA),
+                       season_avg = cummean(rev(F_PTS)),
+                       game_num = seq_along(F_PTS)) %>% 
+                pivot_longer(names_to = "rolling_mean_key", 
+                             values_to = "rolling_mean_value", 
+                             cols = c(three_game, five_game, 
+                                      seven_game, season_avg)) %>% 
+                ggplot(aes(game_num, rolling_mean_value, 
+                           color = rolling_mean_key)) +
+                geom_line() + 
+                theme_classic() +
+                labs(color = "Average")+
+                geom_hline(yintercept = prop)
+        }
+    })
+    
+    output$nfl_player_match <- renderText({
+        if(input$nfl_stats %in% c("QB - passing yards", "QB - pass attempts", "QB - pass completions",
+                                  "QB - passing TDs")){
+            team_stats <- qb_passing
+        }
+        else if(input$nfl_stats %in% c("QB - rushing yards", "QB - rushing TDs")){
+            team_stats <- qb_rushing
+        }
+        else if(input$nfl_stats %in% c("RB - rushing yards", "RB - rushes", "RB - rushing TDs")){
+            team_stats <- rb_rushing
+        }
+        else if(input$nfl_stats %in% c("RB - receptions", "RB - receiving TDs", "RB - receiving yards")){
+            team_stats <- rb_passing
+        }
+        else if(input$nfl_stats %in% c("WR - receptions", "WR - receiving TDs", "WR - receiving yards")){
+            team_stats <- wr_passing
+        }
+        else if(input$nfl_stats %in% c("TE - receiving TDs", "TE - receiving yards", "TE - receptions")){
+            team_stats <- te_passing
+        }
+        else{}
+        x <- input$nfl_stats
+        if(x == "QB - passing yards"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(passing_yards, na.rm = T),
+                          sd1 = sd(passing_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(passing_yards, na.rm = T),
+                          sd1 = sd(passing_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(passing_yards, na.rm = T),
+                          sd1 = sd(passing_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        else if(x == "QB - rushing yards"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(rushing_yards, na.rm = T),
+                          sd1 = sd(rushing_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(rushing_yards, na.rm = T),
+                          sd1 = sd(rushing_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(rushing_yards, na.rm = T),
+                          sd1 = sd(rushing_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        else if(x == "QB - pass attempts"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(attempts, na.rm = T),
+                          sd1 = sd(attempts, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(attempts, na.rm = T),
+                          sd1 = sd(attempts, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(attempts, na.rm = T),
+                          sd1 = sd(attempts, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        else if(x == "QB - pass completions"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(completions, na.rm = T),
+                          sd1 = sd(completions, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(completions, na.rm = T),
+                          sd1 = sd(completions, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(completions, na.rm = T),
+                          sd1 = sd(completions, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "QB - passing TDs"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(passing_tds, na.rm = T),
+                          sd1 = sd(passing_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(passing_tds, na.rm = T),
+                          sd1 = sd(passing_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(passing_tds, na.rm = T),
+                          sd1 = sd(passing_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "QB - rushing TDs"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(rushing_tds, na.rm = T),
+                          sd1 = sd(rushing_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(rushing_tds, na.rm = T),
+                          sd1 = sd(rushing_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(rushing_tds, na.rm = T),
+                          sd1 = sd(rushing_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "RB - rushes"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(carries, na.rm = T),
+                          sd1 = sd(carries, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(carries, na.rm = T),
+                          sd1 = sd(carries, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(carries, na.rm = T),
+                          sd1 = sd(carries, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "RB - rushing yards"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(rushing_yards, na.rm = T),
+                          sd1 = sd(rushing_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(rushing_yards, na.rm = T),
+                          sd1 = sd(rushing_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(rushing_yards, na.rm = T),
+                          sd1 = sd(rushing_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "RB - rushing TDs"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(rushing_tds, na.rm = T),
+                          sd1 = sd(rushing_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(rushing_tds, na.rm = T),
+                          sd1 = sd(rushing_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(rushing_tds, na.rm = T),
+                          sd1 = sd(rushing_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "RB - receptions"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(receptions, na.rm = T),
+                          sd1 = sd(receptions, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(receptions, na.rm = T),
+                          sd1 = sd(receptions, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(receptions, na.rm = T),
+                          sd1 = sd(receptions, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "RB - receiving yards"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(receiving_yards, na.rm = T),
+                          sd1 = sd(receiving_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(receiving_yards, na.rm = T),
+                          sd1 = sd(receiving_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(receiving_yards, na.rm = T),
+                          sd1 = sd(receiving_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "RB - receiving TDs"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(receiving_tds, na.rm = T),
+                          sd1 = sd(receiving_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(receiving_tds, na.rm = T),
+                          sd1 = sd(receiving_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(receiving_tds, na.rm = T),
+                          sd1 = sd(receiving_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "WR - receptions"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(receptions, na.rm = T),
+                          sd1 = sd(receptions, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(receptions, na.rm = T),
+                          sd1 = sd(receptions, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(receptions, na.rm = T),
+                          sd1 = sd(receptions, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "WR - receiving yards"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(receiving_yards, na.rm = T),
+                          sd1 = sd(receiving_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(receiving_yards, na.rm = T),
+                          sd1 = sd(receiving_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(receiving_yards, na.rm = T),
+                          sd1 = sd(receiving_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "WR - receiving TDs"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(receiving_tds, na.rm = T),
+                          sd1 = sd(receiving_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(receiving_tds, na.rm = T),
+                          sd1 = sd(receiving_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(receiving_tds, na.rm = T),
+                          sd1 = sd(receiving_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "TE - receptions"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(receptions, na.rm = T),
+                          sd1 = sd(receptions, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(receptions, na.rm = T),
+                          sd1 = sd(receptions, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(receptions, na.rm = T),
+                          sd1 = sd(receptions, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "TE - receiving yards"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(receiving_yards, na.rm = T),
+                          sd1 = sd(receiving_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(receiving_yards, na.rm = T),
+                          sd1 = sd(receiving_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(receiving_yards, na.rm = T),
+                          sd1 = sd(receiving_yards, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        
+        else if(x == "TE - receiving TDs"){
+            avgs <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:3) %>% 
+                summarise(avg1 = median(receiving_tds, na.rm = T),
+                          sd1 = sd(receiving_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs1 <- player_stats %>%
+                group_by(player_name) %>%
+                slice(1:8) %>% 
+                summarise(avg1 = median(receiving_tds, na.rm = T),
+                          sd1 = sd(receiving_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+            avgs2 <- player_stats %>%
+                group_by(player_name) %>%
+                summarise(avg1 = median(receiving_tds, na.rm = T),
+                          sd1 = sd(receiving_tds, na.rm = T)) %>%
+                filter(avg1 != 0)
+        }
+        else{}
+        
+        player.df <- avgs %>%
+            filter(player_name == input$nfl_player)
+        player_average = as.numeric(player.df[1,1])
+        player_sd = as.numeric(player.df[1,2])
+        
+        player.df1 <- avgs1 %>%
+            filter(player_name == input$nfl_player)
+        player_average1 = as.numeric(player.df[1,1])
+        player_sd1 = as.numeric(player.df[1,2])
+        
+        player.df2 <- avgs2 %>%
+            filter(player_name == input$nfl_player)
+        player_average2 = as.numeric(player.df[1,1])
+        player_sd2 = as.numeric(player.df[1,2])
+        
+        
+        if(x == "QB - passing yards"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Yd))
+            stat_col <- team_stats %>% select(Yd)
+        }
+        else if(x == "QB - rushing yards"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Yd))
+            stat_col <- team_stats %>% select(Yd)
+        }
+        
+        else if(x == "QB - pass attempts"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Att))
+            stat_col <- team_stats %>% select(Att)
+        }
+        
+        else if(x == "QB - pass completions"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Cmp))
+            stat_col <- team_stats %>% select(Cmp)
+        }
+        
+        else if(x == "QB - passing TDs"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(TD))
+            stat_col <- team_stats %>% select(TD)
+        }
+        
+        else if(x == "QB - rushing TDs"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(TD))
+            stat_col <- team_stats %>% select(TD)
+        }
+        
+        else if(x == "RB - rushing yards"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Yd))
+            stat_col <- team_stats %>% select(Yd)
+        }
+        
+        else if(x == "RB - rushes"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Att))
+            stat_col <- team_stats %>% select(Att)
+        }
+        
+        else if(x == "RB - receptions"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Recpt))
+            stat_col <- team_stats %>% select(Recpt)
+        }
+        
+        else if(x == "RB - rushing TDs"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(TD))
+            stat_col <- team_stats %>% select(TD)
+        }
+        
+        else if(x == "RB - receiving TDs"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(TD))
+            stat_col <- team_stats %>% select(TD)
+        }
+        
+        else if(x == "RB - receiving yards"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Yd))
+            stat_col <- team_stats %>% select(Yd)
+        }
+        
+        else if(x == "WR - receiving yards"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Yd))
+            stat_col <- team_stats %>% select(Yd)
+        }
+        
+        else if(x == "WR - receptions"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Recpt))
+            stat_col <- team_stats %>% select(Recpt)
+        }
+        
+        else if(x == "WR - receiving TDs"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(TD))
+            stat_col <- team_stats %>% select(TD)
+        }
+        
+        else if(x == "TE - receiving yards"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Yd))
+            stat_col <- team_stats %>% select(Yd)
+        }
+        
+        else if(x == "TE - receptions"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(Recpt))
+            stat_col <- team_stats %>% select(Recpt)
+        }
+        
+        else if(x == "TE - receiving TDs"){
+            teams <- team_stats %>%
+                group_by(Team) %>%
+                summarise(avg.stat = median(TD))
+            stat_col <- team_stats %>% select(TD)
+        }
+        
+        else{}
+        
+        x <- mean(scale(teams$avg.stat, center = 0))
+        teams <- teams %>%
+            mutate(strength = round(scale(avg.stat, center = 0) - 1, digits = 3))
+        
+        team_adj <- sqldf(paste("select strength[,1] from teams where Team is '",
+                                input$nfl_team, "'", sep = ""))[1,1]
+        
+        simmed <- c()
+        simmed2 <- c()
+        simmed3 <- c()
+        set.seed(21)
+        for(i in 1:10000){
+            simmed[i] <- qnorm(runif(1), mean = player_average, sd = player_sd) +
+                qnorm(runif(1), mean = player_average, sd = player_sd)*team_adj
+            simmed2[i] <- qnorm(runif(1), mean = player_average1, sd = player_sd1) +
+                qnorm(runif(1), mean = player_average, sd = player_sd)*team_adj
+            simmed3[i] <- qnorm(runif(1), mean = player_average2, sd = player_sd2) +
+                qnorm(runif(1), mean = player_average, sd = player_sd)*team_adj
+        }
+        combined <- 0.55*simmed + 0.25*simmed2 + .2*simmed3
+        num = as.numeric(input$nfl_prop)
+        o_odd <- as.numeric(input$nfl_over_odds)
+        o_odd2 <- ifelse(o_odd < 0, -1*o_odd/(-1*o_odd + 100), 100/(100+o_odd))
+        u_odd <- as.numeric(input$nfl_under_odds)
+        u_odd2 <- ifelse(u_odd < 0, -1*u_odd/(-1*u_odd + 100), 100/(100+u_odd))
+        book_odds <- round(o_odd2/(o_odd2 + u_odd2), 4)
+        print(paste("Estimate:", round(mean(combined), digits = 1), "| Prob (%):", (sum(combined > num))/10000,
+                    "| Sportsbook's Prob for Over (%):", book_odds*100))
+    })
+    
+    output$nfl_dt <- renderDataTable({
+        logs <- player_stats %>% 
+            filter(player_name == input$nfl_player) %>% 
+            select(passing_yards, rushing_yards, attempts, completions, passing_tds,
+                   rushing_tds, carries, receptions, targets, receiving_yards, receiving_tds) %>% 
+            slice(1:10)
+    })
+    
+    output$pos_dt <- renderDataTable({
+        if(input$team_pos == "Point Guard"){
+            pg_stats
+        }
+        
+        else if(input$team_pos == "Shooting Guard"){
+            sg_stats
+        }
+        
+        else if(input$team_pos == "Small Forward"){
+            sf_stats
+        }
+        else if(input$team_pos == "Power Forward"){
+            pf_stats
+        }
+        else{
+            c_stats
         }
     })
 }

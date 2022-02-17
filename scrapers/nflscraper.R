@@ -276,7 +276,7 @@ for(i in 1:length(teams)){
   teams[i] <- format_name(teams[i])
 }
 
-teams[18] <- "Washington"
+teams[19] <- "Washington"
 
 nfl$Tm <- teams
 
