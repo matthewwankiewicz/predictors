@@ -72,45 +72,105 @@ team_stats <- stats %>%
 
 
 
-c_stats <- team_stats %>% filter(Position == "C") %>% select(-c(Position, TEAM_NAME)) %>% 
+c_stats <- team_stats %>% filter(Position == "C") %>% select(-c(TEAM_NAME)) %>% 
   mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
          PTS_REB = OPP_PTS + OPP_REB,
          PTS_AST = OPP_PTS + OPP_AST,
          REB_AST = OPP_REB + OPP_AST,
          F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
-           2*OPP_BLK -.5*OPP_TO) %>% 
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
   relocate(TEAM)
-pf_stats <- team_stats %>% filter(Position == "PF") %>% select(-c(Position, TEAM_NAME)) %>% 
+pf_stats <- team_stats %>% filter(Position == "PF") %>% select(-c(TEAM_NAME)) %>% 
   mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
          PTS_REB = OPP_PTS + OPP_REB,
          PTS_AST = OPP_PTS + OPP_AST,
          REB_AST = OPP_REB + OPP_AST,
          F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
-           2*OPP_BLK -.5*OPP_TO) %>% 
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
   relocate(TEAM)
-sf_stats <- team_stats %>% filter(Position == "SF") %>% select(-c(Position, TEAM_NAME)) %>% 
+sf_stats <- team_stats %>% filter(Position == "SF") %>% select(-c(TEAM_NAME)) %>% 
   mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
          PTS_REB = OPP_PTS + OPP_REB,
          PTS_AST = OPP_PTS + OPP_AST,
          REB_AST = OPP_REB + OPP_AST,
          F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
-           2*OPP_BLK -.5*OPP_TO) %>% 
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
   relocate(TEAM)
-sg_stats <- team_stats %>% filter(Position == "SG") %>% select(-c(Position, TEAM_NAME)) %>% 
+sg_stats <- team_stats %>% filter(Position == "SG") %>% select(-c(TEAM_NAME)) %>% 
   mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
          PTS_REB = OPP_PTS + OPP_REB,
          PTS_AST = OPP_PTS + OPP_AST,
          REB_AST = OPP_REB + OPP_AST,
          F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
-           2*OPP_BLK -.5*OPP_TO) %>% 
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
   relocate(TEAM)
-pg_stats <- team_stats %>% filter(Position == "PG") %>% select(-c(Position, TEAM_NAME)) %>% 
+pg_stats <- team_stats %>% filter(Position == "PG") %>% select(-c(TEAM_NAME)) %>% 
   mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
          PTS_REB = OPP_PTS + OPP_REB,
          PTS_AST = OPP_PTS + OPP_AST,
          REB_AST = OPP_REB + OPP_AST,
          F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
-           2*OPP_BLK -.5*OPP_TO) %>% 
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
   relocate(TEAM)
 
 
@@ -119,7 +179,187 @@ write_rds(sg_stats, "predictors/sg_stats.rds")
 write_rds(sf_stats, "predictors/sf_stats.rds")
 write_rds(pf_stats, "predictors/pf_stats.rds")
 write_rds(c_stats, "predictors/c_stats.rds")
+write_rds(team_stats, "predictors/team_opp_stats.rds")
 
+### Last 14
+
+url <- "https://hashtagbasketball.com/nba-defense-vs-position"
+pg <- read_html(url)
+pgform <-html_form(pg)[[1]]
+
+filled_form <-html_form_set(pgform,
+                            "ctl00$ContentPlaceHolder1$DDDURATION" = "30"             
+)
+
+d <- html_form_submit(form=filled_form)
+
+x <- d %>% 
+  read_html()
+
+
+last14 <- x %>% html_table()
+last14 <- last14[[11]]
+
+
+x <- data.frame(last14)
+for(i in 2:ncol(x)){
+  x[,i] <- format_name(x[,i])
+}
+
+stats <- tibble(x)
+
+names <- c("Position", "TEAM_NAME", "OPP_PTS", "OPP_FG_PCT", "OPP_FT_PCT", "OPP_FG3M", "OPP_REB", "OPP_AST",
+           "OPP_STL", "OPP_BLK", "OPP_TO")
+
+colnames(stats) <- names
+
+
+cols.num <- c("OPP_PTS", "OPP_FG_PCT", "OPP_FT_PCT", "OPP_FG3M", "OPP_REB", "OPP_AST",
+              "OPP_STL", "OPP_BLK", "OPP_TO")
+
+stats[cols.num] <- sapply(stats[cols.num],as.numeric)
+
+team_stats <- stats %>% 
+  mutate(TEAM = case_when(
+    TEAM_NAME == "ATL" ~ "Atlanta Hawks",
+    TEAM_NAME == "BRO" ~ "Brooklyn Nets",
+    TEAM_NAME == "BOS" ~ "Boston Celtics",
+    TEAM_NAME == "NYK" ~ "New York Knicks",
+    TEAM_NAME == "PHI" ~ "Philadelphia 76ers",
+    TEAM_NAME == "TOR" ~ "Toronto Raptors",
+    TEAM_NAME == "CHI" ~ "Chicago Bulls",
+    TEAM_NAME == "CLE" ~ "Cleveland Cavaliers",
+    TEAM_NAME == "DET" ~ "Detroit Pistons",
+    TEAM_NAME == "IND" ~ "Indiana Pacers",
+    TEAM_NAME == "MIL" ~ "Milwaukee Bucks",
+    TEAM_NAME == "CHA" ~ "Charlotte Hornets",
+    TEAM_NAME == "MIA" ~ "Miami Heat",
+    TEAM_NAME == "ORL" ~ "Orlando Magic",
+    TEAM_NAME == "WAS" ~ "Washington Wizards",
+    TEAM_NAME == "DEN" ~ "Denver Nuggets",
+    TEAM_NAME == "MIN" ~ "Minnesota Timberwolves",
+    TEAM_NAME == "OKL" ~ "Oklahoma City Thunder",
+    TEAM_NAME == "UTA" ~ "Utah Jazz",
+    TEAM_NAME == "GSW" ~ "Golden State Warriors",
+    TEAM_NAME == "LAC" ~ "Los Angeles Clippers",
+    TEAM_NAME == "LAL" ~ "Los Angeles Lakers",
+    TEAM_NAME == "PHX" ~ "Phoenix Suns",
+    TEAM_NAME == "SAC" ~ "Sacramento Kings",
+    TEAM_NAME == "DAL" ~ "Dallas Mavericks",
+    TEAM_NAME == "HOU" ~ "Houston Rockets",
+    TEAM_NAME == "MEM" ~ "Memphis Grizzlies",
+    TEAM_NAME == "NOP" ~ "New Orleans Pelicans",
+    TEAM_NAME == "SAS" ~ "San Antonio Spurs",
+    TEAM_NAME == "POR" ~ "Portland Trail Blazers"
+  ))
+
+
+c_stats <- team_stats %>% filter(Position == "C") %>% select(-c(TEAM_NAME)) %>% 
+  mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
+         PTS_REB = OPP_PTS + OPP_REB,
+         PTS_AST = OPP_PTS + OPP_AST,
+         REB_AST = OPP_REB + OPP_AST,
+         F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
+  relocate(TEAM)
+pf_stats <- team_stats %>% filter(Position == "PF") %>% select(-c(TEAM_NAME)) %>% 
+  mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
+         PTS_REB = OPP_PTS + OPP_REB,
+         PTS_AST = OPP_PTS + OPP_AST,
+         REB_AST = OPP_REB + OPP_AST,
+         F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
+  relocate(TEAM)
+sf_stats <- team_stats %>% filter(Position == "SF") %>% select(-c(TEAM_NAME)) %>% 
+  mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
+         PTS_REB = OPP_PTS + OPP_REB,
+         PTS_AST = OPP_PTS + OPP_AST,
+         REB_AST = OPP_REB + OPP_AST,
+         F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
+  relocate(TEAM)
+sg_stats <- team_stats %>% filter(Position == "SG") %>% select(-c(TEAM_NAME)) %>% 
+  mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
+         PTS_REB = OPP_PTS + OPP_REB,
+         PTS_AST = OPP_PTS + OPP_AST,
+         REB_AST = OPP_REB + OPP_AST,
+         F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
+  relocate(TEAM)
+pg_stats <- team_stats %>% filter(Position == "PG") %>% select(-c(TEAM_NAME)) %>% 
+  mutate(PTS_REB_AST = OPP_PTS + OPP_REB + OPP_AST,
+         PTS_REB = OPP_PTS + OPP_REB,
+         PTS_AST = OPP_PTS + OPP_AST,
+         REB_AST = OPP_REB + OPP_AST,
+         F_PTS = OPP_PTS + .5*OPP_FG3M + 1.25*OPP_REB + 1.5*OPP_AST + 2*OPP_STL +
+           2*OPP_BLK -.5*OPP_TO,
+         PTS_RANK = rank(OPP_PTS),
+         AST_RANK = rank(OPP_AST),
+         REB_RANK = rank(OPP_REB),
+         FG3_RANK = rank(OPP_FG3M),
+         STL_RANK  = rank(OPP_STL),
+         BLK_RANK = rank(OPP_BLK),
+         TO_RANK  = rank(OPP_TO),
+         PRA_RANK = rank(PTS_REB_AST),
+         PA_RANK = rank(PTS_AST),
+         PR_RANK = rank(PTS_REB),
+         RA_RANK = rank(REB_AST),
+         FPTS_RANK = rank(F_PTS)) %>% 
+  relocate(TEAM)
+
+write_rds(pg_stats, "predictors/pg_stats14.rds")
+write_rds(sg_stats, "predictors/sg_stats14.rds")
+write_rds(sf_stats, "predictors/sf_stats14.rds")
+write_rds(pf_stats, "predictors/pf_stats14.rds")
+write_rds(c_stats, "predictors/c_stats14.rds")
 
 ## gamelogs
 
@@ -129,9 +369,6 @@ team_stats <- team_stats %>%
   select(-Rk) %>% 
   drop_na()
 
-## clean gamelogs
-gamelogs$GAME_ID <- as.numeric(gamelogs$GAME_ID)
-
 gamelogs <- gamelogs %>% 
   select(-c(...1, TEAM_ID, TEAM_ABBREVIATION, TEAM_CITY, PLAYER_ID, 
             NICKNAME, START_POSITION, COMMENT, MIN)) %>% 
@@ -139,8 +376,17 @@ gamelogs <- gamelogs %>%
          PTS_AST = PTS + AST,
          PTS_REB = PTS + REB,
          REB_AST = REB + AST,
-         F_PTS = PTS + .5*FG3M + 1.25*REB + 1.5*AST + 2*BLK + 2*STL - 0.5*TO) %>% 
-  arrange(desc(GAME_ID))
+         F_PTS = PTS + .5*FG3M + 1.25*REB + 1.5*AST + 2*BLK + 2*STL - 0.5*TO)
+gamelogs$GAME_ID <- as.numeric(gamelogs$GAME_ID)
+
+games <- read_csv("models/nba_games.csv")
+games <- games %>% 
+  select(GAME_ID, GAME_DATE) %>% 
+  filter(duplicated(GAME_ID))
+
+games$GAME_DATE <- lubridate::as_date(games$GAME_DATE)
+games$GAME_ID <- as.numeric(games$GAME_ID)
+gamelogs <- left_join(games, gamelogs, by = "GAME_ID")
 
 
 write_rds(team_stats, "predictors/team_opp_stats.rds")
@@ -827,12 +1073,14 @@ model_stan <- gam(home_win ~ . - home_score - visitor_score -
                                  W.x - W.y - L.x - L.y - home_diff,
                                data = total_schedule, family = binomial())
 
-model_spread <- lm(home_diff ~ efg_diff_off*efg_diff_def + efg_diff_off + efg_diff_def +
+model_spread <- lmer(home_diff ~ efg_diff_off*efg_diff_def + efg_diff_off + efg_diff_def +
                    tov_diff_off*tov_diff_def + tov_diff_off + tov_diff_def + 
-                     orb_diff_off*orb_diff_def + orb_diff_off + orb_diff_def + home + visitor +
-                     pace.x*pace.y + pace.x + pace.y, data = total_schedule)
+                     orb_diff_off*orb_diff_def + orb_diff_off + orb_diff_def +
+                     pace.x*pace.y + pace.x + pace.y + (1|home) + (1|visitor), data = total_schedule)
 
-model_total <- lm(total_score ~ efg_diff_off*efg_diff_def + efg_diff_off + efg_diff_def +
+model_teams <- lm(home_diff ~ home + visitor, data = total_schedule)
+
+model_total <- lmer(total_score ~ efg_diff_off*efg_diff_def + efg_diff_off + efg_diff_def +
                   tov_diff_off*tov_diff_def + tov_diff_off + tov_diff_def + 
                     orb_diff_off*orb_diff_def + orb_diff_off + orb_diff_def + home + visitor +
                     pace.x*pace.y + pace.x + pace.y +
@@ -841,8 +1089,7 @@ model_total <- lm(total_score ~ efg_diff_off*efg_diff_def + efg_diff_off + efg_d
                     orb_percent_off.x + orb_percent_off.y+ orb_percent_def.x + orb_percent_def.y+ 
                     ft_rate_off.x + ft_rate_off.y+ ft_rate_def.x + ft_rate_def.y+ 
                     pts_poss_off.x + pts_poss_off.y+ pts_poss_def.x + pts_poss_def.y +
-                    over.x + over.y + under.x + under.y + net_diff.x +
-                    net_diff.y, data = total_schedule)
+                    (1|home) + (1|visitor), data = total_schedule)
 
 ## accuracy check
 
@@ -889,12 +1136,15 @@ matchups$estimate_spread <- round(predict(model_spread, newdata = matchups,
 matchups$estimate_total <- round(predict(model_total, newdata = matchups,
                                           type = "response"))
 
+matchups$estimate_teams <- round(predict(model_teams, newdata = matchups,
+                                         type = "response"))
+
+matchups <- matchups %>% 
+  mutate(final_est = 0.7*estimate_spread + 0.3*estimate_teams)
+
 
 
 ### save
 write_rds(matchups, "predictors/nba_matchups.rds")
-write_rds(matchups_visitorb2b, "predictors/nba_matchups_visitorb2b.rds")
-write_rds(matchups_homeb2b, "predictors/nba_matchups_homeb2b.rds")
-write_rds(matchups_bothb2b, "predictors/nba_matchups_bothb2b.rds")
 write_rds(nba_acc, "predictors/nba_acc.rds")
 
